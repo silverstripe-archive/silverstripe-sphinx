@@ -9,9 +9,11 @@ class SphinxSearch extends Object {
 	 * Get the CRC as a positive integer-string 
 	 */
 	static function unsignedcrc($what) {
-		$value = crc32($what);
-		// If we could rely on bcmath, this is what we'd do: return ($value < 0)  ? bcadd($value, /*2^32 = */'4294967296') : $value;
-		return '' . (($value < 0) ? ($value + 0x100000000) : $value);
+		$val = crc32($what);
+		if (PHP_INT_SIZE>=8) $val = ($val<0) ? $val+(1<<32) : $val;
+		else                 $val = sprintf("%u", $val);
+		
+		return ''.$val;
 	}
 	
 	/**

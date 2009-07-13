@@ -1221,9 +1221,13 @@ class SphinxClient
 							list(,$val) = unpack ( "N*", substr ( $response, $p, 4 ) ); $p += 4;
 							$attrvals[$attr][] = sprintf ( "%u", $val );
 						}
-					} else
+					} 
+					else
 					{
-						$attrvals[$attr] = sprintf ( "%u", $val );
+						if ( PHP_INT_SIZE>=8 )
+							$attrvals[$attr] = ($val<0) ? $val+(1<<32) : $val;
+						else
+							$attrvals[$attr] = sprintf ( "%u", $val );
 					}
 				}
 

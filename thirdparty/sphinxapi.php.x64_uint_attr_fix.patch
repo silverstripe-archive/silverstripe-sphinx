@@ -1,0 +1,22 @@
+--- /Users/hamish/build/sphinx-0.9.9-rc2/api/sphinxapi.php	2009-04-07 10:15:58.000000000 +1200
++++ sphinxapi.php	2009-07-14 09:12:41.000000000 +1200
+@@ -1219,13 +1219,17 @@
+ 						while ( $nvalues-->0 && $p<$max )
+ 						{
+ 							list(,$val) = unpack ( "N*", substr ( $response, $p, 4 ) ); $p += 4;
+ 							$attrvals[$attr][] = sprintf ( "%u", $val );
+ 						}
+-					} else
++					} 
++					else
+ 					{
+-						$attrvals[$attr] = sprintf ( "%u", $val );
++						if ( PHP_INT_SIZE>=8 )
++							$attrvals[$attr] = ($val<0) ? $val+(1<<32) : $val;
++						else
++							$attrvals[$attr] = sprintf ( "%u", $val );
+ 					}
+ 				}
+ 
+ 				if ( $this->_arrayresult )
+ 					$result["matches"][$idx]["attrs"] = $attrvals;
