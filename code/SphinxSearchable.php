@@ -34,6 +34,18 @@ class SphinxSearchable extends DataObjectDecorator {
 		$sing->reindex($sing->indexes($this->owner->class));
 	}
 	
+	/**
+	 * Get a snippet highlighting the search terms
+	 * 
+	 * @todo This is not super fast because of round trip latency. Sphinx supports passing more than one document at a time, but because we use heaps of indexes we can't really take
+	 * advantage of that. Maybe we can fix that somehow?
+	 */
+	function buildExcerpt($terms, $field = 'Content', $opts = array()) {
+		$con = singleton('Sphinx')->connection();
+		$res = $con->BuildExcerpts(array($this->owner->$field), $this->owner->class, $terms, $opts);
+		return array_pop($res);
+	}
+	
 	/*
 	 * INTROSPECTION FUNCTIONS
 	 * 
