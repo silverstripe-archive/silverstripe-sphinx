@@ -109,7 +109,7 @@ class SphinxVariant_Subsite extends Object implements SphinxVariant {
 	}
 	
 	function alterSearch(&$indexes, &$search) {
-		if(Subsite::$disable_subsite_filter || (@$search['subsite']) == 'all') return;
+		if (!class_exists('Subsite') || Subsite::$disable_subsite_filter || (@$search['subsite']) == 'all') return;
 		
 		if     (isset($search['subsite']))            $subsiteID = $search['subsite'];
 		elseif ($context = DataObject::context_obj()) $subsiteID = $context->SubsiteID;
