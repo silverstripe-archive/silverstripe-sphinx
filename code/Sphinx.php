@@ -144,13 +144,16 @@ class Sphinx extends Controller {
 		`{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist`;
 		
 		// Generate word lists
-		$wordfiles = array();
+		$p = new PureSpell();
+		$p->load_dictionary("{$this->VARPath}/sphinx.psdic");
+		
 		foreach ($idxs as $idx) {
 			`{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idx --buildstops {$this->IDXPath}/$idx.words 100000`;
-			$wordfiles[] = "{$this->IDXPath}/$idx.words";
+			$p->load_wordfile("{$this->IDXPath}/$idx.words");
 		}
-		singleton('Spell')->dictionary_from_wordfiles('sphinx', $wordfiles);
 		
+		$p->save_dictionary("{$this->VARPath}/sphinx.psdic");
+				
 		return 'OK';
 	}
 	
@@ -200,6 +203,18 @@ class Sphinx extends Controller {
 		$co->setServer($this->VARPath.'/searchd.sock');
 		return $co;
 	}
+	
+	/**
+	 * Returns a PureSpell instance with the extracted wordlist already loaded
+	 */
+	function speller() {
+		if (!$this->Speller) {
+			$this->Speller = new PureSpell();
+			$this->Speller->load_dictionary("{$this->VARPath}/sphinx.psdic");
+		}
+		return $this->Speller;
+	}
+	
 }
 
 class Sphinx_Source extends ViewableData {

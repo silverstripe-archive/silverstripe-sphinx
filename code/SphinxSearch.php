@@ -138,8 +138,8 @@ class SphinxSearch extends Object {
 			'replacements' => array()
 		);
 		
-		$spell = singleton('Spell');
-		$reps = $spell->check($qry, 'sphinx');
+		$spell = singleton('Sphinx')->speller();
+		$reps = $spell->check($qry, 3);
 		
 		if (!empty($reps)) {
 			$reps = SphinxArrayLib::crossproduct($reps);
