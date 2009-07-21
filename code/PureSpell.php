@@ -1,4 +1,4 @@
-<?
+<?php
 
 /**
  * A simple Pure PHP spell checker. Does well enough for 'Did you mean..' style usage
