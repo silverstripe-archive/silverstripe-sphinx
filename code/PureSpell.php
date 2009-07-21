@@ -23,6 +23,8 @@ class PureSpell {
 	}
 
 	function load_wordfile($file) {
+		if (!file_exists($file)) return;
+		
 		$words = preg_split('/(\r\n|\r|\n)+/', file_get_contents($file));
 		$words = array_unique($words);
 		$this->add_words($words);
