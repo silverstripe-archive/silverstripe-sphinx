@@ -19,7 +19,7 @@ class Sphinx extends Controller {
 	);
 	
 	/** Directory that the sphinx binaries (searchd, indexer, etc.) are in. Add override to mysite/_config.php if they are in a custom location */
-	static $binary_location = '/usr/bin/';
+	static $binary_location = '';
 	
 	/** Override where the indexes and other run-time data is stored. By default, uses subfolders of TEMP_FOLDER/sphinx (normally /tmp/silverstripe-cache-sitepath/sphinx) */
 	static $var_path = null;
@@ -41,7 +41,11 @@ class Sphinx extends Controller {
 		$this->PIDFile = self::$pid_file ? self::$pid_file : $this->VARPath . '/searchd.pid';
 		
 		// Binary path
-		$this->BINPath = defined('SS_SPHINX_BINARY_LOCATION') ? SS_SPHINX_BINARY_LOCATION : ($this->stat('binary_location') ? $this->stat('binary_location') : '');
+		if     (defined('SS_SPHINX_BINARY_LOCATION'))  $this->BINPath = SS_SPHINX_BINARY_LOCATION;       // By constant from _ss_environment.php
+		elseif ($this->stat('binary_location'))        $this->BINPath =  $this->stat('binary_location'); // By static from _config.php
+		elseif (file_exists('/usr/bin/indexer'))       $this->BINPath = '/usr/bin';                      // By searching common directories
+		elseif (file_exists('/usr/local/bin/indexer')) $this->BINPath = '/usr/local/bin';
+		else                                           $this->BINPath = '.';                             // Hope it's in path
 		
 		// An array of class => indexes-as-array-of-strings. Actually filled in as requested by #indexes
 		$this->indexes = array();
