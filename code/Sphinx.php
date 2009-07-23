@@ -232,6 +232,8 @@ class Sphinx_Source extends ViewableData {
 		$this->select = $res['select'];
 		$this->attributes = $res['attributes'];
 		
+		$this->manyManys = $this->Searchable->sphinxManyManyAttributes();
+		
 		/* Build the actual query */
 		$baseTable = ClassInfo::baseDataClass($class);
 		
@@ -248,6 +250,7 @@ class Sphinx_Source extends ViewableData {
 		$conf[] = "source {$this->Name}Src : BaseSrc {";
 		$conf[] = "sql_query = {$this->qry}";
 		$conf[] = implode("\n\t", $this->attributes);
+		$conf[] = implode("\n\t", $this->manyManys);
 		return implode("\n\t", $conf) . "\n}\n";
 	}
 }
