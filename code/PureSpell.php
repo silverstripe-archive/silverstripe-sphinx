@@ -41,7 +41,7 @@ class PureSpell {
 	function check_word($check, $limit = 10) {
 		$simpcheck = metaphone($check);
 		
-		$close = array();
+		$scores = array();
 		foreach ($this->dictionary as $simp => $words) {
 			if ($simpcheck == $simp || levenshtein($simpcheck, $simp) == 1) {
 				foreach ($words as $word) {
@@ -58,7 +58,7 @@ class PureSpell {
 	
 	function check($words, $limit = 10) {
 		$res = array();
-		foreach (preg_split('/[^A-Za-z]+/', $words) as $word) $res[$word] = $this->check_word($word, $limit);
+		foreach (preg_split('/[^A-Za-z]+/', $words, -1, PREG_SPLIT_NO_EMPTY) as $word) $res[$word] = $this->check_word($word, $limit);
 		return $res;
 	}
 	
