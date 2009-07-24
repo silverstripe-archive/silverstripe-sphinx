@@ -26,6 +26,9 @@ class Sphinx extends Controller {
 	static $idx_path = null;
 	static $pid_file = null;
 
+	/** What stop words list to use. null => default list. array('word1','word2') => those words. path as string => that file of words. false => no stopwords list */
+	static $stop_words = null;
+	
 	/** Generate configuration from either static variables or default values, and preps $this to contain configuration values, to be used in templates */
 	function __construct() {
 		global $databaseConfig;
@@ -51,6 +54,19 @@ class Sphinx extends Controller {
 		$this->indexes = array();
 		
 		parent::__construct();
+	}
+	
+	function StopWords() {
+		if (self::$stop_words === null) return "{$this->CNFPath}/stopwords.txt";
+			
+		if (is_array(self::$stop_words)) {
+			$words = implode(' ', self::$stop_words);
+			self::$stop_words = "$this->VARPath/stopwords.".sha1($words).'.txt';
+
+			if (!file_exists(self::$stop_words)) file_put_contents(self::$stop_words, $words);
+		}
+		
+		return self::$stop_words ? Director::getAbsFile(self::$stop_words) : false;
 	}
 	
 	/** Make sure that only administrators or CLI access are allowed to perform actions on object when used as a controller */

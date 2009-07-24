@@ -8,7 +8,7 @@ index BaseIdx {
 	# (see libstemmer_c/libstemmer/modules.txt)
 	morphology = stem_en
 
-	stopwords = $CNFPath/stopwords.txt
+	<% if StopWords %>stopwords = $StopWords<% end_if %>
 
 	charset_type = utf-8
 	charset_table = \
