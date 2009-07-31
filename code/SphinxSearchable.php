@@ -102,7 +102,13 @@ class SphinxSearchable extends DataObjectDecorator {
 					$select[] = "`$class`.`$name` AS $name";
 					$attributes[] = "sql_attr_bool = $name";
 					break;
-					
+
+				case 'Date':
+				case 'SSDatetime':
+					$select[] = "UNIX_TIMESTAMP(`$class`.`$name`) AS $name";
+					$attributes[] = "sql_attr_timestamp = $name";
+					break;
+
 				case 'ForeignKey':
 					$select[] = "`$class`.`$name` AS $name";
 					$attributes[] = "sql_attr_uint = $name";
