@@ -34,6 +34,16 @@ class Sphinx extends Controller {
 		global $databaseConfig;
 
 		$this->Database = new ArrayData($databaseConfig);
+		
+		// If there is a custom port, its on the end of Database->server, so take it off and stick it in the port property (which is not in $databaseConfig)
+		if (strpos($this->Database->server, ":") !== FALSE) {
+			$a = explode(":", $this->Database->server);
+			$this->Database->server = $a[0];
+			$this->Database->port = $a[1];
+		}
+
+		if (!is_numeric($this->Database->port)) $this->Database->port = 3306;		
+		
 		// If server is localhost, sphinx tries connecting using a socket instead. Lets avoid that
 		if ($this->Database->server == 'localhost') $this->Database->server = '127.0.0.1';
 		
