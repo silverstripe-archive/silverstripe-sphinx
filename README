@@ -9,13 +9,20 @@ Hamish Friedlander
 
 Requirements
 -----------------------------------------------
-Sphinx 0.9.9-RC2 or greater must be installed
-On OS X, you'll probably need to raise the open file limit for more complex sites
+Sphinx 0.9.9-RC2 or greater with 64-bit document id support
+On OS X, you'll probably need to raise the open file limit for more complex sites (see http://serverfault.com/questions/15564/where-are-the-default-ulimits-specified-on-os-x-10-5)
+
+Documentation
+-----------------------------------------------
+http://doc.silverstripe.com/doku.php?id=modules:sphinx
 
 Licensing
 -----------------------------------------------
-Because sphinxapi.php is under the GPL, when distibuted with that file this work must also be distributed under the GPL
-When distributed without sphinxapi.php, this work is dual-licensed SilverStripe BSD-derivative & GPL
+The file sphinxapi.php is the official php client for Sphinx, and is distributed under the GPL. We have email confirmation from
+the Sphinx developers that we include sphinxapi.php in SilverStripe under a license similar to Sun's MySQL FOSS exception - that is, 
+the file itself remains under GPL, but distribution within SilverStripe is OK without SilverStripe needing to be distributed under the GPL.  
+
+Thanks to Andrew Aksyonoff and everyone involved in Sphinx
 
 Quick Usage Overview
 -----------------------------------------------
@@ -72,15 +79,14 @@ we simply search across several indexes. This gives us several advantages
  * No shared column issues - each index has exactly the set of columns of it's equivilent class
  * Quick index updating - no need to update the SiteTree index when any child is updated
 
-
- 
-
 TODO
 -----------------------------------------------
 
  * Specify weighting per field
  * Allow fields to be hidden
- * Put hasMany / manyMany attributes back in (was taken out as conflicted with Variant changes)
+ * Put hasMany attributes back in (was taken out as conflicted with Variant changes)
+ * Allow using TCP to connect with searchd, rather than always using unix sockets
+ * Support windows and databases other than MySQL
 
 
 
