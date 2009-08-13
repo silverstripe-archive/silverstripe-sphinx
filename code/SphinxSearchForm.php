@@ -84,7 +84,7 @@ class SphinxSearchForm extends Form {
 		$cachekey = $keywords.':'.$start;
 		if (!isset($this->search_cache[$cachekey])) {
 			$this->search_cache[$cachekey] = SphinxSearch::search($this->classesToSearch, $keywords, array(
-				'exclude' => array('ShowInSearch' => 0),
+				'exclude' => array('ShowInSearch' => 0, '_classid' => SphinxSearch::unsignedcrc('Folder')),
 				'start' => $start,
 				'pagesize' => $pageLength
 			));
