@@ -26,9 +26,15 @@ Thanks to Andrew Aksyonoff and everyone involved in Sphinx
 
 Quick Usage Overview
 -----------------------------------------------
+Compile / Install the Sphinx searchengine
+
 Add the SphinxSearchable decorator to any DataObjects you want to search (for example, SiteTree and File)
 
-Use SphinxSearchForm instead of SearchForm
+If you are using MAMP:
+  - Make sure you are using a TCP socket with searchd, not a unix socket - i.e. put this in your _ss_environment: define('SS_SPHINX_TCP_PORT', 5000);
+  - Make sure your database string in _ss_environment has the port number included - i.e. define('SS_DATABASE_SERVER', 'localhost:8889');
+
+Use SphinxSearchForm instead of SearchForm (if you use it in the default configuration, both SiteTree and File _must_ have been decorated with SphinxSearchable).
 
 For more complex searching using SphinxSearch::search 
 
@@ -50,6 +56,17 @@ Six parts to this module
 
 6. Spell - interfaces with hunspell for the 'Did you mean..' functionality
 
+Troubleshooting
+-----------------------------------------------
+
+Make sure searchd and indexer are in the webserver's path, or set SS_SPHINX_BINARY_LOCATION or Sphinx::$binary_location
+
+Make sure sphinx.conf is getting generated, and so are the index files - look in the sphinx directory inside the silverstripe temp directory (something like /var/tmp/silverstripe-cache-Users-hamish-Sites-project/).
+If you can't find the temporary directory set Sphinx::$var_path to a known empty directory that's writable by the webserver.
+
+Try running search against the generate sphinx.conf - do you get any errors?
+
+Set SphinxSearch::$search_warning_generates_user_warning to true 
 
 SilverStripe to Sphinx mapping
 ===============================================
