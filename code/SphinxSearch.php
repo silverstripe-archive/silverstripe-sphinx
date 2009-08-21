@@ -6,6 +6,17 @@
 class SphinxSearch extends Object {
 
 	/**
+	 * Trigger a user warning on a search engine warning? If false just returns the warning in SphinxSearch::search's result object 
+	 * Note that although this generates E_USER_WARNING, this will still cause SilverStripe to stop processing and display an error message
+	 */
+	static $search_warning_generates_user_warning = false;
+	
+	/**
+	 * Trigger a user error on a search engine error? If false just returns the error in SphinxSearch::search's result object 
+	 */
+	static $search_error_generates_user_error = true;
+	
+	/**
 	 * Get the CRC as a positive integer-string 
 	 */
 	static function unsignedcrc($what) {
@@ -117,7 +128,10 @@ class SphinxSearch extends Object {
 
 		/* Pull any warnings or errors through to the returned data object */
 		if ($err = $con->getLastWarning()) $ret['Warning'] = $err;
+		if ($err && self::$search_warning_generates_user_warning) user_error($err, E_USER_WARNING);
+		
 		if ($err = $con->getLastError()) $ret['Error'] = $err;
+		if ($err && self::$search_error_generates_user_error) user_error($err, E_USER_ERROR);
 		
 		/* If we didn't get that many matches, try looking through all possible spelling corrections to find the one that returns the most matches */
 		if ($res['total'] < 10) {
