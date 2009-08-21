@@ -3,7 +3,7 @@ indexer {
 }
 
 searchd {
-	listen = $VARPath/searchd.sock
+	listen = $Listen
 	
 	pid_file = $PIDFile
 	log = $VARPath/searchd.log

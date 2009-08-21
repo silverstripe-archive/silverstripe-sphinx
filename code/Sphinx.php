@@ -26,6 +26,9 @@ class Sphinx extends Controller {
 	static $idx_path = null;
 	static $pid_file = null;
 
+	/** Set a tcp port. By default, searchd uses a unix socket in var_path. Set a port here or as SS_SPHINX_TCP_PORT to use tcp socket listening on this port on localhost instead */ 
+	static $tcp_port = null;
+
 	/** What stop words list to use. null => default list. array('word1','word2') => those words. path as string => that file of words. false => no stopwords list */
 	static $stop_words = null;
 	
@@ -52,6 +55,9 @@ class Sphinx extends Controller {
 		$this->VARPath = self::$var_path ? self::$var_path : TEMP_FOLDER . '/sphinx';
 		$this->IDXPath = self::$idx_path ? self::$idx_path : $this->VARPath . '/idxs';
 		$this->PIDFile = self::$pid_file ? self::$pid_file : $this->VARPath . '/searchd.pid';
+		
+		$port = defined('SS_SPHINX_TCP_PORT') ? SS_SPHINX_TCP_PORT : self::$tcp_port;
+		$this->Listen = $port ? "127.0.0.1:$port" : "{$this->VARPath}/searchd.sock";
 		
 		// Binary path
 		if     (defined('SS_SPHINX_BINARY_LOCATION'))  $this->BINPath = SS_SPHINX_BINARY_LOCATION;       // By constant from _ss_environment.php
@@ -230,7 +236,7 @@ class Sphinx extends Controller {
 		require_once(Director::baseFolder() . '/sphinx/thirdparty/sphinxapi.php');
 
 		$co = new SphinxClient;
-		$co->setServer($this->VARPath.'/searchd.sock');
+		$co->setServer($this->Listen);
 		return $co;
 	}
 	
