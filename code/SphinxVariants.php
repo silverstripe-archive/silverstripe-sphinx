@@ -72,7 +72,7 @@ class SphinxVariant_Versioned extends Object implements SphinxVariant {
 	static $name = 'Ver';
 	
 	function alterIndexes($class, &$indexes) {
-		if (!Object::has_extension($class, 'Versioned')) return;
+		if (!singleton($class)->hasExtension('Versioned')) return;
 		
 		$old_stage = Versioned::current_stage();
 		Versioned::reading_stage('Live');
@@ -90,7 +90,7 @@ class SphinxVariant_Versioned extends Object implements SphinxVariant {
 		$version = isset($search['version']) ? $search['version'] : Versioned::current_stage();
 		if ($version == 'Live') {
 			foreach ($indexes as $class => &$index) {
-				if (Object::has_extension($class, 'Versioned')) $index = $index . 'Live';
+				if (singleton($class)->hasExtension('Versioned')) $index = $index . 'Live';
 			}
 			unset($index);
 		}
