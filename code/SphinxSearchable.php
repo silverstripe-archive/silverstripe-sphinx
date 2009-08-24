@@ -95,27 +95,27 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'Text':
 				case 'HTMLVarchar':
 				case 'HTMLText':
-					$select[] = "`$class`.`$name` AS $name";
+					$select[] = "`$class`.`$name` AS `$name`";
 					break;
 					
 				case 'Boolean':
-					$select[] = "`$class`.`$name` AS $name";
+					$select[] = "`$class`.`$name` AS `$name`";
 					$attributes[] = "sql_attr_bool = $name";
 					break;
 
 				case 'Date':
 				case 'SSDatetime':
-					$select[] = "UNIX_TIMESTAMP(`$class`.`$name`) AS $name";
+					$select[] = "UNIX_TIMESTAMP(`$class`.`$name`) AS `$name`";
 					$attributes[] = "sql_attr_timestamp = $name";
 					break;
 
 				case 'ForeignKey':
-					$select[] = "`$class`.`$name` AS $name";
+					$select[] = "`$class`.`$name` AS `$name`";
 					$attributes[] = "sql_attr_uint = $name";
 					break;
 					
 				case 'CRCOrdinal':
-					$select[] = "CRC32(`$class`.`$name`) AS $name";
+					$select[] = "CRC32(`$class`.`$name`) AS `$name`";
 					$attributes[] = "sql_attr_uint = $name";
 					break;						
 			}
