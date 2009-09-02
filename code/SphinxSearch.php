@@ -28,6 +28,28 @@ class SphinxSearch extends Object {
 	}
 	
 	/**
+	 * Takes two 32 bit integers, and returns the string that is the BCD representation of the 64 number that is equal to $hi << 32 + $lo
+	 */
+	static function combinedwords($hi, $lo) {
+		if (PHP_INT_SIZE>=8) return $hi << 32 + $lo;
+		
+		// x32, no-bcmath
+		$hi = (float)$hi;
+		$lo = (float)$lo;
+		
+		$q = floor($hi/10000000.0);
+		$r = $hi - $q*10000000.0;
+		$m = $lo + $r*4967296.0;
+		$mq = floor($m/10000000.0);
+		$l = $m - $mq*10000000.0;
+		$h = $q*4294967296.0 + $r*429.0 + $mq;
+	
+		$h = sprintf ( "%.0f", $h );
+		$l = sprintf ( "%07.0f", $l );
+		return $h == "0" ? sprintf("%.0f", (float)$l) : ($h . $l) ;
+	}
+	
+	/**
 	 * Primary search interface for Sphinx. Pass in some arguments, get out a DataObject with the matches and maybe some search suggestions
 	 * @param $classes array | string - A list of classes (must be SphinxSearchable) to search in. By default will also search children of these classes
 	 * @param $qry string - A query as defined by Sphinx's EXTENDED2 syntax

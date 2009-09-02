@@ -135,3 +135,45 @@ class SphinxVariant_Subsite extends Object implements SphinxVariant {
 		}
 	}
 }
+
+class SphinxVariant_Delta extends Object implements SphinxVariant {
+	static $name = 'Delta';
+	
+	function alterIndexes($class, &$indexes) {
+		foreach ($indexes as $index) {
+			// Find the table wuth sphinxPrimaryIndexed flag
+			$flagTable = null;
+			foreach ($index->Sources[0]->qry->select as $k => $field) {
+				if (preg_match('/^`([^`]+)`.`SphinxPrimaryIndexed`/', $field, $m)) { 
+					$flagTable = $m[1];
+					break; 
+				} 
+			}
+			
+			// Build the delta index
+			$deltaIndex = clone $index;
+			$deltaIndex->Name = $index->Name . 'Delta';
+			$deltaIndex->isDelta = true;
+			$deltaIndex->Sources[0] = clone $index->Sources[0];
+			$deltaIndex->Sources[0]->Name = $index->Sources[0]->Name . 'Delta';
+			$deltaIndex->Sources[0]->qry = clone $index->Sources[0]->qry;
+			
+			// Set main index's source to update the flag
+			$index->Sources[0]->prequery = "UPDATE $flagTable SET SphinxPrimaryIndexed = true WHERE " . $index->Sources[0]->qry->getFilter();
+			
+			// Set delta index's source to only collect items not yet in main index
+			$deltaIndex->Sources[0]->qry->where('SphinxPrimaryIndexed = false');
+			
+			$deltas[] = $deltaIndex;
+		}
+		
+		foreach ($deltas as $index) $indexes[] = $index;
+	}
+	
+	function alterSearch(&$indexes, &$search) {
+		foreach ($indexes as $index) $more[] = $index . 'Delta';
+		foreach ($more as $index) $indexes[] = $index;
+		$search['exclude']["_dirty"] = 1;
+	}
+}
+

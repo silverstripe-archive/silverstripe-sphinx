@@ -18,6 +18,36 @@ class SphinxSearchable extends DataObjectDecorator {
 	}
 	
 	/**
+	 * Add field to record whether this row is in primary index or delta index
+	 */
+	function extraStatics() {
+		return array(
+			'db' => array(
+				'SphinxPrimaryIndexed' => 'Boolean'
+			),
+			'indexes' => array(
+				'SphinxPrimaryIndexed' => true
+			)
+		);
+	}
+	
+	/**
+	 * Find the 'Base ID' for this DataObject. The base id is a numeric ID that is unique to the group of DataObject classes that share a common base class (the
+	 * class that immediately inherits from DataObject). This is used often in SphinxSearch as part of the globally unique document ID
+	 */
+	function sphinxBaseID() {
+		return SphinxSearch::unsignedcrc(ClassInfo::baseDataClass($this->owner->class));
+	}
+	
+	/**
+	 * Find the 'Document ID' for this DataObject. The base id is a 64 bit numeric ID (represented by a BCD string in PHP) that is globally unique to this document
+	 * across the entire database. It is formed from BaseID << 32 + DataObjectID, since DataObject IDs are unique within all subclasses of a common base class
+	 */
+	function sphinxDocumentID() {
+		return SphinxSearch::combinedwords($this->sphinxBaseID(), $this->owner->ID);
+	}
+	
+	/**
 	 * Passes search through to SphinxSearch.
 	 */
 	function search() {
@@ -27,11 +57,23 @@ class SphinxSearchable extends DataObjectDecorator {
 	}
 	
 	/**
+	 * Mark this document as dirty in the main indexes by setting (overloaded) SphinxPrimaryIndexed to false
+	 */
+	function sphinxDirty() {
+		$sing = singleton('Sphinx');
+		$mains = array_filter($sing->indexes($this->owner->class), create_function('$i', 'return !$i->isDelta;'));
+		$names = array_map(create_function('$idx', 'return $idx->Name;'), $mains);
+		
+		$sing->connection()->UpdateAttributes(implode(';', $names), array("_dirty"), array($this->sphinxDocumentID() => array(1)));
+	}
+	
+	/**
 	 * Rebuild the sphinx indexes for all indexes that apply to this class (usually the ClassName + and variants)
 	 */
 	function reindex() {
 		$sing = singleton('Sphinx');
-		$sing->reindex($sing->indexes($this->owner->class));
+		$deltas = array_filter($sing->indexes($this->owner->class), create_function('$i', 'return $i->isDelta;'));
+		$sing->reindex($deltas);
 	}
 	
 	/**
@@ -83,9 +125,10 @@ class SphinxSearchable extends DataObjectDecorator {
 			// And select each value individually for filtering and easy access 
 			"`$base`.ID AS _id",
 			"$baseid AS _baseid",
-			"$classid AS _classid"
+			"$classid AS _classid",
+			"0 as _dirty"
 		); 
-		$attributes = array('sql_attr_uint = _id', 'sql_attr_uint = _baseid', 'sql_attr_uint = _classid');
+		$attributes = array('sql_attr_uint = _id', 'sql_attr_uint = _baseid', 'sql_attr_uint = _classid', 'sql_attr_bool = _dirty');
 				
 		foreach($this->sphinxFields() as $name => $info) {
 			list($class, $type) = $info;
@@ -185,13 +228,26 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * 
 	 * Functions to connect regular silverstripe operations with sphinx operations, to maintain syncronisation
 	 */
+
+	// Make sure that SphinxPrimaryIndexed gets set to false, so this record is picked up on delta reindex
+	public function augmentWrite(&$manipulation) {
+		foreach (ClassInfo::ancestry($this->owner->class, true) as $class) {
+			$fields = DataObject::database_fields($class);
+			if (isset($fields['SphinxPrimaryIndexed'])) break;
+		}
+		
+		$manipulation[$class]['fields']['SphinxPrimaryIndexed'] = 0;
+	}
 	
-	
+	// After delete, mark as dirty in main index (so only results from delta index will count), then update the delta index  
 	function onAfterWrite() {
+		$this->sphinxDirty();
 		$this->reindex();
 	}
 	
+	// After delete, mark as dirty in main index (so only results from delta index will count), then update the delta index
 	function onAfterDelete() {
+		$this->sphinxDirty();
 		$this->reindex();
 	}
 	

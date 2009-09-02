@@ -170,7 +170,10 @@ class Sphinx extends Controller {
 		elseif (!is_array($idxs)) $idxs = array($idxs);
 		
 		// If we were passed an array of Sphinx_Index's, get the list of just the names
-		if (isset($idxs[0]) && $idxs[0] instanceof Sphinx_Index) $idxs = array_map(create_function('$idx', 'return $idx->Name;'), $idxs);
+		foreach ($idxs as $idx) {
+			if ($idx instanceof Sphinx_Index) $idxs = array_map(create_function('$idx', 'return $idx->Name;'), $idxs);
+			break;
+		}
 
 		// If searchd is running, we want to rotate the indexes
 		$rotate = $this->status() == 'Running' ? '--rotate' : ''; 
@@ -259,6 +262,9 @@ class Sphinx_Source extends ViewableData {
 		$this->Name = $class;
 		$this->Searchable = singleton($class);
 		
+		/* This is used for the Delta handling */
+		$this->prequery = null;
+		
 		/* Build the select schema & attributes available */
 		$res = $this->Searchable->sphinxFieldConfig();
 		$this->select = $res['select'];
@@ -280,6 +286,7 @@ class Sphinx_Source extends ViewableData {
 	function config() {
 		$conf = array();
 		$conf[] = "source {$this->Name}Src : BaseSrc {";
+		if ($this->prequery) $conf[] = "sql_query_pre = {$this->prequery}";
 		$conf[] = "sql_query = {$this->qry}";
 		$conf[] = implode("\n\t", $this->attributes);
 		$conf[] = implode("\n\t", $this->manyManys);
@@ -296,6 +303,8 @@ class Sphinx_Index extends ViewableData {
 		
 		$this->SearchClass = $class;
 		$this->Name = $class;
+		
+		$this->isDelta = false;
 		
 		$this->Sources = array();
 		$this->Sources[] = new Sphinx_Source($class);
