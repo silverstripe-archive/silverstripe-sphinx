@@ -13,6 +13,27 @@
  */
 class SphinxSearchable extends DataObjectDecorator {
 	
+	/**
+	 * When writing many SphinxSearchable items (such as during a migration import) the burden of keeping the Sphinx index updated in realtime is
+	 * both unneccesary and prohibitive. You can temporarily disable indexed, and enable it again after the bulk write, using these two functions
+	 */
+	
+	static $reindex_on_write = true;
+
+	static function disable_indexing() {
+		self::$reindex_on_write = false;
+	}
+	
+	static function reenable_indexing() {
+		self::$reindex_on_write = true;
+		// We haven't been tracking dirty writes, so the only way to ensure the results are up to date is a full reindex
+		singleton('Sphinx')->reindex();
+	}
+
+	/**
+	 * Returns a list of all classes that are SphinxSearchable
+	 * @return array[string]
+	 */
 	static function decorated_classes() {
 		return array_filter(ClassInfo::subclassesFor('DataObject'), create_function('$class', 'return Object::has_extension($class, "SphinxSearchable");'));
 	}
@@ -241,12 +262,14 @@ class SphinxSearchable extends DataObjectDecorator {
 	
 	// After delete, mark as dirty in main index (so only results from delta index will count), then update the delta index  
 	function onAfterWrite() {
+		if (!self::$reindex_on_write) return;
 		$this->sphinxDirty();
 		$this->reindex();
 	}
 	
 	// After delete, mark as dirty in main index (so only results from delta index will count), then update the delta index
 	function onAfterDelete() {
+		if (!self::$reindex_on_write) return;
 		$this->sphinxDirty();
 		$this->reindex();
 	}
