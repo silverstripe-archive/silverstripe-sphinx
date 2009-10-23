@@ -158,6 +158,8 @@ class Sphinx extends Controller {
 		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
 		
 		file_put_contents("{$this->VARPath}/sphinx.conf", implode("\n", $res));
+		
+		echo nl2br(implode("\n", $res));
 	}	
 	
 	/**
@@ -262,6 +264,8 @@ class Sphinx_Source extends ViewableData {
 		$this->Name = $class;
 		$this->Searchable = singleton($class);
 		
+		$bt = defined('Database::USE_ANSI_SQL') ? "\"" : "`";
+		
 		/* This is used for the Delta handling */
 		$this->prequery = null;
 		
@@ -277,7 +281,7 @@ class Sphinx_Source extends ViewableData {
 		
 		$this->qry = $this->Searchable->buildSQL(null, null, null, null, true);
 		$this->qry->select($this->select);
-		$this->qry->where = array("`$baseTable`.`ClassName` = '$class'");
+		$this->qry->where = array("{$bt}$baseTable{$bt}.{$bt}ClassName{$bt} = '$class'");
 		$this->qry->orderby = null;
 		
 		$this->Searchable->extend('augmentSQL', $this->qry);
@@ -286,6 +290,7 @@ class Sphinx_Source extends ViewableData {
 	function config() {
 		$conf = array();
 		$conf[] = "source {$this->Name}Src : BaseSrc {";
+		if (defined('Database::USE_ANSI_SQL')) $conf[] = "sql_query_pre = SET sql_mode = 'ansi'";
 		if ($this->prequery) $conf[] = "sql_query_pre = {$this->prequery}";
 		$conf[] = "sql_query = {$this->qry}";
 		$conf[] = implode("\n\t", $this->attributes);

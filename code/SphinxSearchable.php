@@ -140,11 +140,13 @@ class SphinxSearchable extends DataObjectDecorator {
 		$baseid = SphinxSearch::unsignedcrc($base);
 		$classid = SphinxSearch::unsignedcrc($this->owner->class);
 		
+		$bt = defined('Database::USE_ANSI_SQL') ? "\"" : "`";
+		
 		$select = array(
 			// Select the 64 bit combination baseid << 32 | itemid as the document ID
-			"($baseid<<32)|`$base`.`ID` AS id", 
+			"($baseid<<32)|{$bt}$base{$bt}.{$bt}ID{$bt} AS id", 
 			// And select each value individually for filtering and easy access 
-			"`$base`.ID AS _id",
+			"{$bt}$base{$bt}.ID AS _id",
 			"$baseid AS _baseid",
 			"$classid AS _classid",
 			"0 as _dirty"
@@ -159,27 +161,27 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'Text':
 				case 'HTMLVarchar':
 				case 'HTMLText':
-					$select[] = "`$class`.`$name` AS `$name`";
+					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
 					break;
 					
 				case 'Boolean':
-					$select[] = "`$class`.`$name` AS `$name`";
+					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
 					$attributes[] = "sql_attr_bool = $name";
 					break;
 
 				case 'Date':
 				case 'SSDatetime':
-					$select[] = "UNIX_TIMESTAMP(`$class`.`$name`) AS `$name`";
+					$select[] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt}) AS {$bt}$name{$bt}";
 					$attributes[] = "sql_attr_timestamp = $name";
 					break;
 
 				case 'ForeignKey':
-					$select[] = "`$class`.`$name` AS `$name`";
+					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
 					$attributes[] = "sql_attr_uint = $name";
 					break;
 					
 				case 'CRCOrdinal':
-					$select[] = "CRC32(`$class`.`$name`) AS `$name`";
+					$select[] = "CRC32({$bt}$class{$bt}.{$bt}$name{$bt}) AS {$bt}$name{$bt}";
 					$attributes[] = "sql_attr_uint = $name";
 					break;						
 			}
@@ -190,6 +192,7 @@ class SphinxSearchable extends DataObjectDecorator {
 	
 	function sphinxHasManyAttributes() {
 		$attributes = array();
+		$bt = defined('Database::USE_ANSI_SQL') ? "\"" : "`";
 		
 		foreach (ClassInfo::ancestry($this->owner->class) as $class) {
 			$has_many = Object::uninherited_static($class, 'has_many');
@@ -200,7 +203,7 @@ class SphinxSearchable extends DataObjectDecorator {
 				
 				$reftables = ClassInfo::ancestry($refclass,true); $reftable = array_pop($reftables);
 
-				$qry->select(array("`$reftable`.`$cid` AS id", "`$reftable`.`ID` AS $name"));
+				$qry->select(array("{$bt}$reftable{$bt}.{$bt}$cid{$bt} AS id", "{$bt}$reftable{$bt}.{$bt}ID{$bt} AS $name"));
 				$qry->where = array();
 				singleton($refclass)->extend('augmentSQL', $qry);
 				
@@ -213,6 +216,7 @@ class SphinxSearchable extends DataObjectDecorator {
 	
 	function sphinxManyManyAttributes() {
 		$attributes = array();
+		$bt = defined('Database::USE_ANSI_SQL') ? "\"" : "`";
 		
 		$base = ClassInfo::baseDataClass($this->owner->class);
 		$baseid = SphinxSearch::unsignedcrc($base);
@@ -233,8 +237,8 @@ class SphinxSearchable extends DataObjectDecorator {
 				list($parentClass, $componentClass, $parentField, $componentField, $table) = $this->owner->many_many($name);
 				$componentBaseClass = ClassInfo::baseDataClass($componentClass);
 		
-				$qry = singleton($componentClass)->extendedSQL(array('true'), null, null, "INNER JOIN `$table` ON `$table`.$componentField = `$componentBaseClass`.ID" );
-				$qry->select(array("($baseid<<32)|`$table`.`$parentField` AS id", "`$table`.`$componentField` AS $name"));
+				$qry = singleton($componentClass)->extendedSQL(array('true'), null, null, "INNER JOIN {$bt}$table{$bt} ON {$bt}$table{$bt}.$componentField = {$bt}$componentBaseClass{$bt}.ID" );
+				$qry->select(array("($baseid<<32)|{$bt}$table{$bt}.{$bt}$parentField{$bt} AS id", "{$bt}$table{$bt}.{$bt}$componentField{$bt} AS $name"));
 				$qry->groupby = array();
 				
 				$attributes[] = "sql_attr_multi = uint $name from query; " . $qry;
