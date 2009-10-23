@@ -246,6 +246,17 @@ class Sphinx extends Controller {
 	}
 	
 	/**
+	 * Trim indexes of 0 bytes if we're over the 100 limit
+	 */
+	function trimIndexes(&$indexes) {
+		foreach ($indexes as $i => $indexName) {
+			if (file_exists($this->IDXPath.'/'.$indexName.'.sph') && filesize($this->IDXPath.'/'.$indexName.'.sph') === 0) {
+				unset($indexes[$i]);
+			}
+		}
+	}
+	
+	/**
 	 * Returns a PureSpell instance with the extracted wordlist already loaded
 	 */
 	function speller() {

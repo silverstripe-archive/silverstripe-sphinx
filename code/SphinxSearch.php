@@ -108,8 +108,16 @@ class SphinxSearch extends Object {
 		foreach ($classes as $class) $classmap[self::unsignedcrc($class)] = $class;
 
 		/* Get connection */
-		$con = singleton('Sphinx')->connection();
+		$sphinx = singleton('Sphinx');
+		$con = $sphinx->connection();
 		$con->SetMatchMode(SPH_MATCH_EXTENDED2);
+		
+		
+		// echo "Query: $qry, Indexes (".count($indexes).") ".join(',',$indexes)."<br />\n";
+		if (count($indexes) > 99) $sphinx->trimIndexes($indexes);
+		if (count($indexes) > 99) $indexes = array_slice($indexes, 0, 99);
+		
+		// echo "Query: $qry, Indexes (".count($indexes).") ".join(',',$indexes)."<br />\n";
 		
 		/* Set filters */
 		foreach (array('require' => false, 'exclude' => true) as $key => $exclude) {
