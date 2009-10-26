@@ -112,11 +112,9 @@ class SphinxSearch extends Object {
 		$con = $sphinx->connection();
 		$con->SetMatchMode(SPH_MATCH_EXTENDED2);
 		
-		
 		// echo "Query: $qry, Indexes (".count($indexes).") ".join(',',$indexes)."<br />\n";
-		if (count($indexes) > 99) $sphinx->trimIndexes($indexes);
+		if (count($indexes) > 99) singleton('Sphinx')->trimIndexes($indexes);
 		if (count($indexes) > 99) $indexes = array_slice($indexes, 0, 99);
-		
 		// echo "Query: $qry, Indexes (".count($indexes).") ".join(',',$indexes)."<br />\n";
 		
 		/* Set filters */
@@ -127,7 +125,6 @@ class SphinxSearch extends Object {
 				foreach ($values as &$value) {
 					if (!is_numeric($value)) $value = self::unsignedcrc($value);
 				}
-				
 				unset($value);	
 				$con->SetFilter($attr, $values, $exclude);
 			}
