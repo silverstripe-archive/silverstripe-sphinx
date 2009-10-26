@@ -275,7 +275,7 @@ class Sphinx_Source extends ViewableData {
 		$this->Name = $class;
 		$this->Searchable = singleton($class);
 		
-		$bt = defined('Database::USE_ANSI_SQL') ? "\"" : "`";
+		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
 		
 		/* This is used for the Delta handling */
 		$this->prequery = null;
@@ -301,7 +301,7 @@ class Sphinx_Source extends ViewableData {
 	function config() {
 		$conf = array();
 		$conf[] = "source {$this->Name}Src : BaseSrc {";
-		if (defined('Database::USE_ANSI_SQL')) $conf[] = "sql_query_pre = SET sql_mode = 'ansi'";
+		if (defined('DB::USE_ANSI_SQL')) $conf[] = "sql_query_pre = SET sql_mode = 'ansi'";
 		if ($this->prequery) $conf[] = "sql_query_pre = {$this->prequery}";
 		$conf[] = "sql_query = {$this->qry}";
 		$conf[] = implode("\n\t", $this->attributes);

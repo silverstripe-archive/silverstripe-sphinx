@@ -140,7 +140,7 @@ class SphinxSearchable extends DataObjectDecorator {
 		$baseid = SphinxSearch::unsignedcrc($base);
 		$classid = SphinxSearch::unsignedcrc($this->owner->class);
 		
-		$bt = defined('Database::USE_ANSI_SQL') ? "\"" : "`";
+		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
 		
 		$select = array(
 			// Select the 64 bit combination baseid << 32 | itemid as the document ID
@@ -192,7 +192,7 @@ class SphinxSearchable extends DataObjectDecorator {
 	
 	function sphinxHasManyAttributes() {
 		$attributes = array();
-		$bt = defined('Database::USE_ANSI_SQL') ? "\"" : "`";
+		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
 		
 		foreach (ClassInfo::ancestry($this->owner->class) as $class) {
 			$has_many = Object::uninherited_static($class, 'has_many');
@@ -216,7 +216,7 @@ class SphinxSearchable extends DataObjectDecorator {
 	
 	function sphinxManyManyAttributes() {
 		$attributes = array();
-		$bt = defined('Database::USE_ANSI_SQL') ? "\"" : "`";
+		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
 		
 		$base = ClassInfo::baseDataClass($this->owner->class);
 		$baseid = SphinxSearch::unsignedcrc($base);

@@ -144,7 +144,7 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 			// Find the table wuth sphinxPrimaryIndexed flag
 			$flagTable = null;
 			
-			if (!defined('Database::USE_ANSI_SQL')) $pattern = '/^`([^`]+)`.`SphinxPrimaryIndexed`/';
+			if (!defined('DB::USE_ANSI_SQL')) $pattern = '/^`([^`]+)`.`SphinxPrimaryIndexed`/';
 			else $pattern = '/^"([^"]+)"."SphinxPrimaryIndexed"/';
 			
 			foreach ($index->Sources[0]->qry->select as $k => $field) {
