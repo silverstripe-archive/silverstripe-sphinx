@@ -321,9 +321,21 @@ class Sphinx_Index extends ViewableData {
 		$this->Name = $class;
 		
 		$this->isDelta = false;
-		
+
 		$this->Sources = array();
 		$this->Sources[] = new Sphinx_Source($class);
+
+		$this->baseTable = null;
+			
+		if (!defined('DB::USE_ANSI_SQL')) $pattern = '/^`([^`]+)`.`SphinxPrimaryIndexed`/';
+		else $pattern = '/^"([^"]+)"."SphinxPrimaryIndexed"/';
+			
+		foreach ($this->Sources[0]->qry->select as $k => $field) {
+			if (preg_match($pattern, $field, $m)) { 
+				$this->baseTable = $m[1];
+				break; 
+			} 
+		}
 	}
 	
 	function config() {

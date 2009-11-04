@@ -80,6 +80,7 @@ class SphinxVariant_Versioned extends Object implements SphinxVariant {
 		$idx = new Sphinx_Index($class);
 		$idx->Name = $idx->Name . 'Live';
 		$idx->Sources[0]->Name = $idx->Sources[0]->Name . 'Live';
+		$idx->baseTable = $idx->baseTable . '_Live';
 		
 		$indexes[] = $idx;
 		
@@ -141,19 +142,8 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 	
 	function alterIndexes($class, &$indexes) {
 		foreach ($indexes as $index) {
-			// Find the table wuth sphinxPrimaryIndexed flag
-			$flagTable = null;
-			
-			if (!defined('DB::USE_ANSI_SQL')) $pattern = '/^`([^`]+)`.`SphinxPrimaryIndexed`/';
-			else $pattern = '/^"([^"]+)"."SphinxPrimaryIndexed"/';
-			
-			foreach ($index->Sources[0]->qry->select as $k => $field) {
-				if (preg_match($pattern, $field, $m)) { 
-					$flagTable = $m[1];
-					break; 
-				} 
-			}
-			
+			$flagTable = $index->baseTable;
+		
 			// Build the delta index
 			$deltaIndex = clone $index;
 			$deltaIndex->Name = $index->Name . 'Delta';
@@ -162,11 +152,13 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 			$deltaIndex->Sources[0]->Name = $index->Sources[0]->Name . 'Delta';
 			$deltaIndex->Sources[0]->qry = clone $index->Sources[0]->qry;
 			
-			// Set main index's source to update the flag
-			$index->Sources[0]->prequery = "UPDATE $flagTable SET SphinxPrimaryIndexed = true WHERE " . $index->Sources[0]->qry->getFilter();
+			// Set main index's source to update the flag.
+			$inst = singleton($class);
+			$base = $inst->baseTable();
+			$index->Sources[0]->prequery = "UPDATE $flagTable LEFT JOIN `$base` on $flagTable.ID=$base.ID SET SphinxPrimaryIndexed = true WHERE " . $index->Sources[0]->qry->getFilter();
 			
 			// Set delta index's source to only collect items not yet in main index
-			$deltaIndex->Sources[0]->qry->where('SphinxPrimaryIndexed = false');
+			$deltaIndex->Sources[0]->qry->where($flagTable . '.SphinxPrimaryIndexed = false');
 			
 			$deltas[] = $deltaIndex;
 		}

@@ -123,7 +123,7 @@ class SphinxSearchable extends DataObjectDecorator {
 			$conf = $this->owner->stat('sphinx');
 			
 			$fieldOverrides = ($conf && isset($conf['fields'])) ? $conf['fields'] : array();
-			
+
 			if ($fields) foreach($fields as $name => $type) {
 				if     (isset($fieldOverrides[$name]))           $type = $fieldOverrides[$name];
 				elseif (preg_match('/^(\w+)\(/', $type, $match)) $type = $match[1];
@@ -152,16 +152,27 @@ class SphinxSearchable extends DataObjectDecorator {
 			"0 as _dirty"
 		); 
 		$attributes = array('sql_attr_uint = _id', 'sql_attr_uint = _baseid', 'sql_attr_uint = _classid', 'sql_attr_bool = _dirty');
-				
+
+		$conf = $this->owner->stat('sphinx');
+		$ordered = isset($conf['orderable']) ? $conf['orderable'] : array();
+
 		foreach($this->sphinxFields() as $name => $info) {
 			list($class, $type) = $info;
 			
 			switch ($type) {
+				case 'Enum':
 				case 'Varchar':
 				case 'Text':
 				case 'HTMLVarchar':
 				case 'HTMLText':
 					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
+
+					// If the field is in the ordered set, we generate an extra column of the 1st four chars packed to assist in
+					// sorting, since sphinx doesn't directly allow sorting by strings.
+					if (in_array($name, $ordered)) {
+						$select[] = "(ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},1,1)) << 24) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},2,1)) << 16) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},3,1)) << 8) | ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},4,1)) as {$bt}_packed_$name{$bt}";
+						$attributes[] = "sql_attr_uint = _packed_$name";
+					}
 					break;
 					
 				case 'Boolean':
@@ -171,6 +182,7 @@ class SphinxSearchable extends DataObjectDecorator {
 
 				case 'Date':
 				case 'SSDatetime':
+				case 'SS_Datetime':
 					$select[] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt}) AS {$bt}$name{$bt}";
 					$attributes[] = "sql_attr_timestamp = $name";
 					break;
@@ -183,10 +195,11 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'CRCOrdinal':
 					$select[] = "CRC32({$bt}$class{$bt}.{$bt}$name{$bt}) AS {$bt}$name{$bt}";
 					$attributes[] = "sql_attr_uint = $name";
-					break;						
+					break;		
+				default:
 			}
 		}
-		
+
 		return array('select' => $select, 'attributes' => $attributes);
 	}
 	
