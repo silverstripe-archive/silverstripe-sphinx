@@ -267,16 +267,26 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * Functions to connect regular silverstripe operations with sphinx operations, to maintain syncronisation
 	 */
 
-	// Make sure that SphinxPrimaryIndexed gets set to false, so this record is picked up on delta reindex
+	// Make sure that SphinxPrimaryIndexed gets set to false, so this record is picked up on delta reindex. This gets called after
+	// versioned manipulates the write, so tables may be live or stage.
 	public function augmentWrite(&$manipulation) {
 		foreach (ClassInfo::ancestry($this->owner->class, true) as $class) {
 			$fields = DataObject::database_fields($class);
 			if (isset($fields['SphinxPrimaryIndexed'])) break;
 		}
+
+		// If the class is versioned and the particular manipulations are being done to live, use that as the class name.
+		/*
+		 * @TODO: this is a nasty hack. What should happen is this whole function should be in an augmentWrite on the delta
+		 * variant, where it belongs.
+		 */
+		if (singleton($class)->hasExtension('Versioned') && Versioned::current_stage() == Versioned::get_live_stage()) {
+			$class .= "_" . Versioned::get_live_stage(); // not base table, which would give us potentially too low a table
+		}
 		
 		$manipulation[$class]['fields']['SphinxPrimaryIndexed'] = 0;
 	}
-	
+
 	// After delete, mark as dirty in main index (so only results from delta index will count), then update the delta index  
 	function onAfterWrite() {
 		if (!self::$reindex_on_write) return;
