@@ -31,8 +31,6 @@ class SphinxSearch extends Object {
 	 * Takes two 32 bit integers, and returns the string that is the BCD representation of the 64 number that is equal to $hi << 32 + $lo
 	 */
 	static function combinedwords($hi, $lo) {
-		if (PHP_INT_SIZE>=8) return $hi << 32 + $lo;
-		
 		// x32, no-bcmath
 		$hi = (float)$hi;
 		$lo = (float)$lo;
@@ -179,10 +177,10 @@ class SphinxSearch extends Object {
 			}
 		}
 
-		// echo "Query: $qry, Indexes (".count($indexes).") ".join(',',$indexes)."<br />\n";
+		//echo "Query: $qry, Indexes (".count($indexes).") ".join(',',$indexes)."<br />\n";
 		if (count($indexes) > 99) singleton('Sphinx')->trimIndexes($indexes);
-		if (count($indexes) > 99) $indexes = array_slice($indexes, 0, 99);
-		// echo "Query: $qry, Indexes (".count($indexes).") ".join(',',$indexes)."<br />\n";
+		if (count($indexes) > 75) $indexes = array_slice($indexes, 0, 75);
+		//echo "Query: $qry, Indexes (".count($indexes).") ".join(',',$indexes)."<br />\n";
 		
 		/* Set filters */
 		foreach (array('require' => false, 'exclude' => true) as $key => $exclude) {
