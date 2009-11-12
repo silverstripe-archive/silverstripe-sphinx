@@ -174,7 +174,7 @@ class SphinxSearchable extends DataObjectDecorator {
 						$attributes[] = "sql_attr_uint = _packed_$name";
 					}
 					break;
-					
+
 				case 'Boolean':
 					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
 					$attributes[] = "sql_attr_bool = $name";
@@ -188,6 +188,7 @@ class SphinxSearchable extends DataObjectDecorator {
 					break;
 
 				case 'ForeignKey':
+				case 'Int':
 					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
 					$attributes[] = "sql_attr_uint = $name";
 					break;
