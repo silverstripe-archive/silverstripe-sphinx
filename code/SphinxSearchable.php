@@ -7,8 +7,6 @@
  *  - Provides introspection methods, for getting the fields and relationships of an object in Sphinx-compatible form
  *  - Provides hooks into writing, deleting and schema rebuilds, so we can reindex & rebuild the Sphinx configuration automatically 
  * 
- * Note: Children DataObject's inherit their Parent's Decorators - there is no need to at this extension to BlogEntry if SiteTree already has it, and doing so will probably cause issues.
- * 
  * @author Hamish Friedlander <hamish@silverstripe.com>
  */
 class SphinxSearchable extends DataObjectDecorator {
@@ -51,7 +49,14 @@ class SphinxSearchable extends DataObjectDecorator {
 			)
 		);
 	}
-	
+
+	protected $excludeByDefault;
+
+	function __construct($excludeByDefault = false) {
+		parent::__construct();
+		$this->excludeByDefault = $excludeByDefault;
+	}
+
 	/**
 	 * Find the 'Base ID' for this DataObject. The base id is a numeric ID that is unique to the group of DataObject classes that share a common base class (the
 	 * class that immediately inherits from DataObject). This is used often in SphinxSearch as part of the globally unique document ID
@@ -113,28 +118,60 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * INTROSPECTION FUNCTIONS
 	 * 
 	 * Helper functions to allow SphinxSearch to introspect a DataObject to get the fields it should inject into sphinx.conf
+	 *
+	 * Returns an array mapping field name to (class [string], type [string], filterable [boolean], sortable [boolean], stringType[boolean]).
+	 * If excludeByDefault is false, returns all fields in the dataobject and its ancestors.
+	 * if excludeByDefault is true, returns all indexable fields in the ancestors, and fields explicitly defined
+	 * in the class itself.
+	 * @param string $class The class being introspected
+	 * @param array $childconf The configuration array of the context that is wanting our fields, usually child classes because we start
+	 *    at a child and recurse to the parents.
 	 */
-	
-	function sphinxFields() {
-		$ret = array();
-		
-		foreach (ClassInfo::ancestry($this->owner->class, true) as $class) {
-			$fields = DataObject::database_fields($class);
-			$conf = $this->owner->stat('sphinx');
-			
-			$fieldOverrides = ($conf && isset($conf['fields'])) ? $conf['fields'] : array();
+	function sphinxFields($class, $childconf = null) {
+		if ($class == "DataObject") return array();
 
-			if ($fields) foreach($fields as $name => $type) {
-				if     (isset($fieldOverrides[$name]))           $type = $fieldOverrides[$name];
-				elseif (preg_match('/^(\w+)\(/', $type, $match)) $type = $match[1];
-				
-				$ret[$name] = array($class, $type);
-			}
-		}
+		$sing = singleton($class);
+		$conf = $sing->stat('sphinx');
+		if (!$conf) $conf = array();
+		if (!isset($conf['search_fields'])) $conf['search_fields'] = array();
+		if (!isset($conf['filter_fields']))	$conf['filter_fields'] = array();
+		if (!isset($conf['sort_fields'])) $conf['sort_fields'] = array();
 		
+		// merge our conf with what's passed in, being careful to explicitly merge the field lists
+		if ($childconf) {
+			if (isset($childconf["search_fields"])) $conf["search_fields"] = array_merge($conf["search_fields"], $childconf["search_fields"]);
+			if (isset($childconf["filter_fields"]))$conf["filter_fields"] = array_merge($conf["filter_fields"], $childconf["filter_fields"]);
+			if (isset($childconf["sort_fields"]))$conf["sort_fields"] = array_merge($conf["sort_fields"], $childconf["sort_fields"]);
+		}
+
+		$ret = $this->sphinxFields($sing->parentClass(), $conf);
+
+		// Grab fields. If the class descends DataObject, we want ClassName et al, otherwise just fields added by this class.
+		$fields = (get_parent_class($class) == 'DataObject') ? DataObject::database_fields($class) : DataObject::custom_database_fields($class);
+
+		if ($fields) foreach($fields as $name => $type) {
+			if (preg_match('/^(\w+)\(/', $type, $match)) $type = $match[1];
+			$stringType = ($type == 'Enum' || $type == 'Varchar' || $type == 'Text' || $type == 'HTMLVarchar' || $type == 'HTMLText');
+			if ($this->excludeByDefault && $name != 'SphinxPrimaryIndexed') {
+				$select = false;
+				$filter = false;
+				$sort = false;
+				if (in_array($name, $conf['search_fields'])) $select = true;
+				if (in_array($name, $conf['filter_fields'])) $filter = true;
+				if (in_array($name, $conf['sort_fields'])) $sort = true;
+
+				if ($sort) $filter = true;
+				if ($filter) $select = true;
+
+				if ($select) $ret[$name] = array($class, $type, $filter, $sort, $stringType);
+			}
+			else	
+				$ret[$name] = array($class, $type, true, in_array($name, $conf['sort_fields']), $stringType);
+		}
+
 		return $ret;
 	}
-	
+
 	function sphinxFieldConfig() {
 		$base = ClassInfo::baseDataClass($this->owner->class);
 		$baseid = SphinxSearch::unsignedcrc($base);
@@ -153,11 +190,9 @@ class SphinxSearchable extends DataObjectDecorator {
 		); 
 		$attributes = array('sql_attr_uint = _id', 'sql_attr_uint = _baseid', 'sql_attr_uint = _classid', 'sql_attr_bool = _dirty');
 
-		$conf = $this->owner->stat('sphinx');
-		$ordered = isset($conf['orderable']) ? $conf['orderable'] : array();
-
-		foreach($this->sphinxFields() as $name => $info) {
-			list($class, $type) = $info;
+//echo "fields for {$this->owner->class}:"; print_r($this->sphinxFields($this->owner->class));
+		foreach($this->sphinxFields($this->owner->class) as $name => $info) {
+			list($class, $type, $filter, $sortable, $stringType) = $info;
 			
 			switch ($type) {
 				case 'Enum':
@@ -167,9 +202,9 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'HTMLText':
 					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
 
-					// If the field is in the ordered set, we generate an extra column of the 1st four chars packed to assist in
+					// If the field is sortable, we generate an extra column of the 1st four chars packed to assist in
 					// sorting, since sphinx doesn't directly allow sorting by strings.
-					if (in_array($name, $ordered)) {
+					if ($sortable) {
 						$select[] = "(ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},1,1)) << 24) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},2,1)) << 16) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},3,1)) << 8) | ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},4,1)) as {$bt}_packed_$name{$bt}";
 						$attributes[] = "sql_attr_uint = _packed_$name";
 					}
@@ -177,25 +212,25 @@ class SphinxSearchable extends DataObjectDecorator {
 
 				case 'Boolean':
 					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
-					$attributes[] = "sql_attr_bool = $name";
+					if ($filter) $attributes[] = "sql_attr_bool = $name";
 					break;
 
 				case 'Date':
 				case 'SSDatetime':
 				case 'SS_Datetime':
 					$select[] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt}) AS {$bt}$name{$bt}";
-					$attributes[] = "sql_attr_timestamp = $name";
+					if ($filter) $attributes[] = "sql_attr_timestamp = $name";
 					break;
 
 				case 'ForeignKey':
 				case 'Int':
 					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
-					$attributes[] = "sql_attr_uint = $name";
+					if ($filter) $attributes[] = "sql_attr_uint = $name";
 					break;
 					
 				case 'CRCOrdinal':
 					$select[] = "CRC32({$bt}$class{$bt}.{$bt}$name{$bt}) AS {$bt}$name{$bt}";
-					$attributes[] = "sql_attr_uint = $name";
+					if ($filter) $attributes[] = "sql_attr_uint = $name";
 					break;		
 				default:
 			}
@@ -270,6 +305,7 @@ class SphinxSearchable extends DataObjectDecorator {
 
 	// Make sure that SphinxPrimaryIndexed gets set to false, so this record is picked up on delta reindex. This gets called after
 	// versioned manipulates the write, so tables may be live or stage.
+	// @TODO: Generalise augmentWrite to call augment method on the enabled variants, move all this logic into the delta variant.
 	public function augmentWrite(&$manipulation) {
 		foreach (ClassInfo::ancestry($this->owner->class, true) as $class) {
 			$fields = DataObject::database_fields($class);

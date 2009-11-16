@@ -147,18 +147,22 @@ class SphinxSearch extends Object {
 					$packed = false;
 					$alias = "__sort_" . ++$aliasCount;
 					$actualSortField = $f;
-					
-					// Determine if any of the classes identify the sort field as orderable, as these require special handling.
-					// Note that if a field is specified as orderable in one of the search classes, it will treated that way
-					// in all classes.
+
+					// Determine if this field is to be packed or not. It will be packed if any of the classes define this
+					// field as sortable and its a string type.
+					// Also, if one class defines it as string and another a non-string, it will still end up packed. If the caller
+					// doesn't like it, they should change their table structure.
 					foreach ($classes as $class) {
-						$inst = singleton($class);
-						$conf = $inst->stat('sphinx');
-						if ($conf && isset($conf['orderable']) && in_array($f, $conf['orderable'])) {
-							$packed = true;
-							break;
+						$instfields = singleton($class)->sphinxFields($class);
+						if ($instfields && isset($instfields[$f])) {
+							list($class, $type, $filter, $sortable, $stringType) = $instfields[$f];
+							if ($sortable && $stringType) {
+								$packed = true;
+								break;
+							}
 						}
 					}
+
 					if ($packed) $actualSortField = "_packed_" . $actualSortField;
 					if (substr($actualSortField, 0, 1) == '@')  $sortClauses[] = $actualSortField . " " . $dir; // sphinx builtin
 					else {
