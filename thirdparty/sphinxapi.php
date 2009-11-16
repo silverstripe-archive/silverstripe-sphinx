@@ -497,7 +497,7 @@ class SphinxClient
 
 	function _Send ( $handle, $data, $length )
 	{
-		if ( feof($handle) || fwrite ( $handle, $data, $length ) !== $length )
+		if ( /* feof($handle) || */ fwrite ( $handle, $data, $length ) !== $length )
 		{
 			$this->_error = 'connection unexpectedly closed (timed out?)';
 			$this->_connerror = true;
