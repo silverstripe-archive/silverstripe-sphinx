@@ -66,9 +66,9 @@ class Sphinx extends Controller {
 		elseif (file_exists('/usr/local/bin/indexer')) $this->BINPath = '/usr/local/bin';
 		else                                           $this->BINPath = '.';                             // Hope it's in path
 		
-		// An array of class => indexes-as-array-of-strings. Actually filled in as requested by #indexes
+		// An array that maps class names to arrays of Sphinx_Index objects.
 		$this->indexes = array();
-		
+
 		parent::__construct();
 	}
 	
@@ -98,27 +98,85 @@ class Sphinx extends Controller {
 		return ( $this->BINPath ? $this->BINPath . '/' : '' ) . $prog;
 	}
 	
-	/** Accessor to get the current set of indexes. Built once on first request */
+	/**
+	 * Return the list of indexes to built for a set of classes. If classes are not provided, uses the list
+	 * of all decorated classes.
+	 * 
+	 * Construction of indexes is two pass. First pass builds a list that maps a list of classes to a list of indices. The second
+	 * pass uses this to construct the actual Sphinx_Index objects (which needs all classes in the index, hence first pass.)
+	 * 
+	 * First pass works by building an array that maps a signature to an index descriptor. The signature is made up of the fields
+	 * that are searchable and fields that are filterable for the class, in a canonical form for comparison. The structure is built
+	 * by iterating over classes, looking for an item in the array with exactly matching descriptor. If one is found, the class
+	 * being indexed CI must be a descendant of the base class in the descriptor CB, or vice versa. If this is true, the descriptor
+	 * will hold the higher level of the two (making the order in which the classes are processed irrelevant). If there is
+	 * not a direct ancestry, then a new descriptor is created.
+	 * 
+	 * The second pass is just iterating over the descriptors, and creating the Sphinx_Index objects from it.
+	 *
+	 * @param $classes
+	 * @return unknown_type
+	 */
 	function indexes($classes=null) {
 		if (!$classes) $classes = SphinxSearchable::decorated_classes();
 		if (!is_array($classes)) $classes = array($classes);
-		
-		$res = array();
-		
+
+		$index_desc = array();
+
+		// Work out what indexes we need to construct. We can't build the Sphinx_Index objects on first
+		// pass because it needs the complete list of classes in the index, which we don't initially have,
+		// which is what we're building here.
 		foreach ($classes as $class) {
-			if (!isset($this->indexes[$class])) {
-				$indexes = array(new Sphinx_Index($class));
-				SphinxVariants::alterIndexes($class, $indexes);
-				
-				$this->indexes[$class] = $indexes;
+			$sig = $this->getSearchSignature($class);
+			if (isset($index_desc[$sig])) {
+				$base = $index_desc[$sig]["baseClass"];
+				if (is_subclass_of($base, $class)) { // we have a better base class
+					$index_desc[$sig]["baseClass"] = $class;
+					$index_desc[$sig]["classes"][] = $class;
+				}
+				else if (is_subclass_of($class, $base)) $index_desc[$sig]["classes"][] = $class;
+				else $index_desc[$sig] = array("classes" => array($class), "baseClass" => $class);
 			}
-			
-			$res = array_merge($res, $this->indexes[$class]);
+			else
+				$index_desc[$sig] = array("classes" => array($class), "baseClass" => $class);
 		}
 
-		return $res;
+//echo "indexes to build:"; print_r($index_desc);
+
+		$result = array();
+		foreach ($index_desc as $sig => $desc) {
+			$classes = $desc['classes'];
+			$baseClass = $desc['baseClass'];
+			if (!isset($this->indexes[$baseClass])) {
+				$indexes = array(new Sphinx_Index($classes, $baseClass));
+				SphinxVariants::alterIndexes($baseClass, $indexes);
+
+				$this->indexes[$baseClass] = $indexes;
+			}	
+
+			$result = array_merge($result, $this->indexes[$baseClass]);
+		}
+
+		return $result;
 	}
 	
+	// Return a string signature for a class.
+	protected function getSearchSignature($class) {
+		$sing = new $class();
+		$fields = $sing->sphinxFields($class);
+
+		$result = ":";
+
+		ksort($fields);
+
+		foreach ($fields as $name => $def) {
+			list($class, $type, $filter, $sort, $isString) = $def;
+			$result .= $name . "_" . $filter . $sort . ":";
+		}
+
+		return $result;
+	}
+
 	/**
 	 * Check to make sure there aren't any CRC clashes.
 	 * @todo - Run on all fields that are CRCEnumerable, not just class names
@@ -270,10 +328,10 @@ class Sphinx extends Controller {
 }
 
 class Sphinx_Source extends ViewableData {
-	function __construct($class) {
-		$this->SearchClass = $class;
-		$this->Name = $class;
-		$this->Searchable = singleton($class);
+	function __construct($classes, $baseClass) {
+		$this->SearchClasses = $classes;
+		$this->Name = $baseClass;
+		$this->Searchable = singleton($baseClass);
 		
 		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
 		
@@ -288,11 +346,11 @@ class Sphinx_Source extends ViewableData {
 		$this->manyManys = $this->Searchable->sphinxManyManyAttributes();
 		
 		/* Build the actual query */
-		$baseTable = ClassInfo::baseDataClass($class);
+		$baseTable = ClassInfo::baseDataClass($baseClass);
 		
 		$this->qry = $this->Searchable->buildSQL(null, null, null, null, true);
 		$this->qry->select($this->select);
-		$this->qry->where = array("{$bt}$baseTable{$bt}.{$bt}ClassName{$bt} = '$class'");
+		$this->qry->where = array("{$bt}$baseTable{$bt}.{$bt}ClassName{$bt} in ('" . implode("','", $this->SearchClasses) . "')");
 		$this->qry->orderby = null;
 		
 		$this->Searchable->extend('augmentSQL', $this->qry);
@@ -314,16 +372,17 @@ class Sphinx_Source extends ViewableData {
  * Handles introspecting a DataObject to generate a source and an index configuration for that DataObject
  */
 class Sphinx_Index extends ViewableData {
-	function __construct($class) {
+	function __construct($classes, $baseClass) {
 		$this->data = singleton('Sphinx');
 		
-		$this->SearchClass = $class;
-		$this->Name = $class;
+		$this->SearchClasses = $classes;
+		$this->Name = $baseClass;
+		$this->BaseClass = $baseClass;
 		
 		$this->isDelta = false;
 
 		$this->Sources = array();
-		$this->Sources[] = new Sphinx_Source($class);
+		$this->Sources[] = new Sphinx_Source($classes, $baseClass);
 
 		$this->baseTable = null;
 			

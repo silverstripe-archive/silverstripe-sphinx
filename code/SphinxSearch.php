@@ -106,19 +106,24 @@ class SphinxSearch extends Object {
 			foreach ($classes as $class) $children = array_merge($children, ClassInfo::subclassesFor($class));
 			$classes = array_unique($children);
 		}
-		
+
+		// OK, work out what the indexes are for this collection of classes.
+		$sphinx = singleton('Sphinx');
+		$classes = array();
+		foreach ($sphinx->indexes($classes) as $i) $classes[] = $i->BaseClass;
+		$classes = array_unique($classes);
+
 		/* Build an array of $class => $index pairs */
 		$indexes = array_combine($classes, $classes);
-		
+
 		/* Allow variants to alter search */
 		SphinxVariants::alterSearch($indexes, $args);
-		
+
 		/* Make a map to convert CRC32 encoded class IDs back to class names */
 		$classmap = array();
 		foreach ($classes as $class) $classmap[self::unsignedcrc($class)] = $class;
 
 		/* Get connection */
-		$sphinx = singleton('Sphinx');
 		$con = $sphinx->connection();
 		$con->SetMatchMode(SPH_MATCH_EXTENDED2);
 

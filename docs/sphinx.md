@@ -41,27 +41,43 @@
   made filterable. This gives maximum searchability with the cost of potentially increasing the number of indices. If this is set to true,
   fields in subclasses are excluded from indexing unless the sub-class specifically defines $searchFields, $filterFields.
   e.g. `static $extensions = array('SphinxSearchable(true)'); // disable automatic inclusion of all subclass fields`
-  	
-# Troubleshooting
 
-# Is the Sphinx configuration file being Created?
+# Managing Larger Configurations
 
-# Can the Indexer Build all the Indices?
+Sphinx performance and resource usage is affected by a number of factors, including:
 
-* 'No local indices'
+* Number of indices
+* Whether or not deltas are used
+* The number of attributes in the indices. These are kept in searchd memory.
 
-## Intermittent Errors
-
-### "failed to send client protocol version"
-
-This error may be intermittent. It is symptomatic of a limit being reached on the number of indices.
-Ways to reduce the number of indicies:
+Ways to control these factors include:
 
 * Attach the decorator at a deeper level in the class tree. e.g. instead of decorating Page, decorate specific subclasses of Page.
 * Use the excludeByDefault option on the constructor, and explicitly control classes.
 * For classes that change very infrequently, or are small, consider disabling delta indices.
 * For versioned pages, if search is not required in the CMS, consider explicit control over the stages that are indexed. (e.g. only index Live
   if searching is only enabled  at the front end.)
+
+# Troubleshooting
+
+# Is the Sphinx configuration file being Created?
+
+* Check permissions
+* When running a dev/build via sake, don't include flush=all, as this requires you to be logged in as admin, and will generate an invalid sphinx.conf
+
+# Can the Indexer Build all the Indices?
+
+* Error is 'No local indices'
+* Check that the class being searched actually have indices
+* Check the sphinx.conf to ensure config for that class is correct.
+* Use 'indexer' on the config file to see if there are errors.
+
+## Errors
+
+### "failed to send client protocol version"
+
+This error may be intermittent. It is symptomatic of a limit being reached on the number of indices.
+Ways to reduce the number of indicies:
 
 ## Sorting Issues
 

@@ -77,8 +77,9 @@ class SphinxVariant_Versioned extends Object implements SphinxVariant {
 		$old_stage = Versioned::current_stage();
 		Versioned::reading_stage('Live');
 		
-		$idx = new Sphinx_Index($class);
+		$idx = new Sphinx_Index($indexes[0]->SearchClasses, $class);
 		$idx->Name = $idx->Name . 'Live';
+		$idx->BaseClass = $class;
 		$idx->Sources[0]->Name = $idx->Sources[0]->Name . 'Live';
 		$idx->baseTable = $idx->baseTable . '_Live';
 		
