@@ -277,23 +277,21 @@ class SphinxSearchable extends DataObjectDecorator {
 		$many_manys = $conf['filterable_many_many'];
 		if     (is_string($many_manys) && $many_manys != '*') $many_manys = array($many_manys => $many_manys);
 		elseif (is_array($many_manys))                        $many_manys = array_combine($many_manys, $many_manys);
-		
-		foreach (ClassInfo::ancestry($this->owner->class) as $class) {
-			$many_many = (array) Object::uninherited_static($class, 'many_many');
-			if ($many_manys != '*') $many_many = array_intersect_key($many_many, $many_manys); // Filter to only include specified many_manys
+
+		// grab many_many and belongs_many_many
+		$many_many = $this->owner->many_many();
+		if ($many_manys != '*') $many_many = array_intersect_key($many_many, $many_manys); // Filter to only include specified many_manys
+		if ($many_many) foreach ($many_many as $name => $refclass) {
+			list($parentClass, $componentClass, $parentField, $componentField, $table) = $this->owner->many_many($name);
+			$componentBaseClass = ClassInfo::baseDataClass($componentClass);
+	
+			$qry = singleton($componentClass)->extendedSQL(array('true'), null, null, "INNER JOIN {$bt}$table{$bt} ON {$bt}$table{$bt}.$componentField = {$bt}$componentBaseClass{$bt}.ID" );
+			$qry->select(array("($baseid<<32)|{$bt}$table{$bt}.{$bt}$parentField{$bt} AS id", "{$bt}$table{$bt}.{$bt}$componentField{$bt} AS $name"));
+			$qry->groupby = array();
 			
-			if ($many_many) foreach ($many_many as $name => $refclass) {
-				list($parentClass, $componentClass, $parentField, $componentField, $table) = $this->owner->many_many($name);
-				$componentBaseClass = ClassInfo::baseDataClass($componentClass);
-		
-				$qry = singleton($componentClass)->extendedSQL(array('true'), null, null, "INNER JOIN {$bt}$table{$bt} ON {$bt}$table{$bt}.$componentField = {$bt}$componentBaseClass{$bt}.ID" );
-				$qry->select(array("($baseid<<32)|{$bt}$table{$bt}.{$bt}$parentField{$bt} AS id", "{$bt}$table{$bt}.{$bt}$componentField{$bt} AS $name"));
-				$qry->groupby = array();
-				
-				$attributes[] = "sql_attr_multi = uint $name from query; " . $qry;
-			}
+			$attributes[] = "sql_attr_multi = uint $name from query; " . $qry;
 		}
-		
+
 		return $attributes;
 	}
 	
