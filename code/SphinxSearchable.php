@@ -17,7 +17,6 @@ class SphinxSearchable extends DataObjectDecorator {
 	 */
 	
 	static $reindex_on_write = true;
-
 	static function disable_indexing() {
 		self::$reindex_on_write = false;
 	}
@@ -136,12 +135,14 @@ class SphinxSearchable extends DataObjectDecorator {
 		if (!isset($conf['search_fields'])) $conf['search_fields'] = array();
 		if (!isset($conf['filter_fields']))	$conf['filter_fields'] = array();
 		if (!isset($conf['sort_fields'])) $conf['sort_fields'] = array();
+		if (!isset($conf['extra_fields'])) $conf['extra_fields'] = array();
 		
 		// merge our conf with what's passed in, being careful to explicitly merge the field lists
 		if ($childconf) {
 			if (isset($childconf["search_fields"])) $conf["search_fields"] = array_merge($conf["search_fields"], $childconf["search_fields"]);
 			if (isset($childconf["filter_fields"]))$conf["filter_fields"] = array_merge($conf["filter_fields"], $childconf["filter_fields"]);
 			if (isset($childconf["sort_fields"]))$conf["sort_fields"] = array_merge($conf["sort_fields"], $childconf["sort_fields"]);
+			if (isset($childconf["extra_fields"]))$conf["extra_fields"] = array_merge($conf["extra_fields"], $childconf["extra_fields"]);
 		}
 
 		$ret = $this->sphinxFields($sing->parentClass(), $conf);
@@ -163,10 +164,17 @@ class SphinxSearchable extends DataObjectDecorator {
 				if ($sort) $filter = true;
 				if ($filter) $select = true;
 
-				if ($select) $ret[$name] = array($class, $type, $filter, $sort, $stringType);
+				if ($select) $ret[$name] = array($class, $type, $filter, $sort, $stringType, null);
 			}
 			else	
-				$ret[$name] = array($class, $type, true, in_array($name, $conf['sort_fields']), $stringType);
+				$ret[$name] = array($class, $type, true, in_array($name, $conf['sort_fields']), $stringType, null);
+		}
+
+		// Add in any extra fields.
+		// @TODO: because attributes must be ints, we assume the value is an int.
+		foreach ($conf['extra_fields'] as $fieldName => $value) {
+			if (strpos($value, "::") !== FALSE) $value = call_user_func($value);
+			$ret[$fieldName] = array($class, 'Custom', true, true, false, $value);
 		}
 
 		return $ret;
@@ -192,7 +200,7 @@ class SphinxSearchable extends DataObjectDecorator {
 
 //echo "fields for {$this->owner->class}:"; print_r($this->sphinxFields($this->owner->class));
 		foreach($this->sphinxFields($this->owner->class) as $name => $info) {
-			list($class, $type, $filter, $sortable, $stringType) = $info;
+			list($class, $type, $filter, $sortable, $stringType, $value) = $info;
 			
 			switch ($type) {
 				case 'Enum':
@@ -231,7 +239,11 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'CRCOrdinal':
 					$select[] = "CRC32({$bt}$class{$bt}.{$bt}$name{$bt}) AS {$bt}$name{$bt}";
 					if ($filter) $attributes[] = "sql_attr_uint = $name";
-					break;		
+					break;	
+
+				case 'Custom':
+					$select[] = "$value as {$bt}$name{$bt}";
+					if ($filter) $attributes[] = "sql_attr_uint = $name";
 				default:
 			}
 		}
@@ -271,25 +283,29 @@ class SphinxSearchable extends DataObjectDecorator {
 		$baseid = SphinxSearch::unsignedcrc($base);
 		
 		$conf = $this->owner->stat('sphinx');
-		if (!isset($conf['filterable_many_many'])) return $attributes;
+		if (isset($conf['filterable_many_many'])) {
+			// Build an array with the keys being the many_manys to include as attributes
+			$many_manys = $conf['filterable_many_many'];
+			if     (is_string($many_manys) && $many_manys != '*') $many_manys = array($many_manys => $many_manys);
+			elseif (is_array($many_manys))                        $many_manys = array_combine($many_manys, $many_manys);
 
-		// Build an array with the keys being the many_manys to include as attributes
-		$many_manys = $conf['filterable_many_many'];
-		if     (is_string($many_manys) && $many_manys != '*') $many_manys = array($many_manys => $many_manys);
-		elseif (is_array($many_manys))                        $many_manys = array_combine($many_manys, $many_manys);
-
-		// grab many_many and belongs_many_many
-		$many_many = $this->owner->many_many();
-		if ($many_manys != '*') $many_many = array_intersect_key($many_many, $many_manys); // Filter to only include specified many_manys
-		if ($many_many) foreach ($many_many as $name => $refclass) {
-			list($parentClass, $componentClass, $parentField, $componentField, $table) = $this->owner->many_many($name);
-			$componentBaseClass = ClassInfo::baseDataClass($componentClass);
+			// grab many_many and belongs_many_many
+			$many_many = $this->owner->many_many();
+			if ($many_manys != '*') $many_many = array_intersect_key($many_many, $many_manys); // Filter to only include specified many_manys
+			if ($many_many) foreach ($many_many as $name => $refclass) {
+				list($parentClass, $componentClass, $parentField, $componentField, $table) = $this->owner->many_many($name);
+				$componentBaseClass = ClassInfo::baseDataClass($componentClass);
 	
-			$qry = singleton($componentClass)->extendedSQL(array('true'), null, null, "INNER JOIN {$bt}$table{$bt} ON {$bt}$table{$bt}.$componentField = {$bt}$componentBaseClass{$bt}.ID" );
-			$qry->select(array("($baseid<<32)|{$bt}$table{$bt}.{$bt}$parentField{$bt} AS id", "{$bt}$table{$bt}.{$bt}$componentField{$bt} AS $name"));
-			$qry->groupby = array();
-			
-			$attributes[] = "sql_attr_multi = uint $name from query; " . $qry;
+				$qry = singleton($componentClass)->extendedSQL(array('true'), null, null, "INNER JOIN {$bt}$table{$bt} ON {$bt}$table{$bt}.$componentField = {$bt}$componentBaseClass{$bt}.ID" );
+				$qry->select(array("($baseid<<32)|{$bt}$table{$bt}.{$bt}$parentField{$bt} AS id", "{$bt}$table{$bt}.{$bt}$componentField{$bt} AS $name"));
+				$qry->groupby = array();
+
+				$attributes[] = "sql_attr_multi = uint $name from query; " . $qry;
+			}
+		}
+
+		if (isset($conf['extra_many_many'])) {
+			foreach ($conf['extra_many_many'] as $key => $value) $attributes[] = "sql_attr_multi = uint $key from query; " . $value;
 		}
 
 		return $attributes;
