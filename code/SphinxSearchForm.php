@@ -28,8 +28,9 @@ class SphinxSearchForm extends Form {
 	 * @param FieldSet $actions Optional, defaults to a single field named "Go".
 	 * @param boolean $showInSearchTurnOn DEPRECATED 2.3
 	 */
-	function __construct($controller, $name, $fields = null, $actions = null, $showInSearchTurnOn = true) {
+	function __construct($controller, $name, $fields = null, $actions = null, $showInSearchTurnOn = true, $args = array()) {
 		$this->showInSearchTurnOn = $showInSearchTurnOn;
+		$this->args = $args;
 		
 		if(!$fields) {
 			$fields = new FieldSet(
@@ -83,11 +84,11 @@ class SphinxSearchForm extends Form {
 		
 		$cachekey = $keywords.':'.$start;
 		if (!isset($this->search_cache[$cachekey])) {
-			$this->search_cache[$cachekey] = SphinxSearch::search($this->classesToSearch, $keywords, array(
+			$this->search_cache[$cachekey] = SphinxSearch::search($this->classesToSearch, $keywords, array_merge_recursive(array(
 				'exclude' => array('ShowInSearch' => 0, '_classid' => SphinxSearch::unsignedcrc('Folder')),
 				'start' => $start,
 				'pagesize' => $pageLength
-			));
+			), $this->args));
 		}
 		
 		return $this->search_cache[$cachekey];
