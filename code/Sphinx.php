@@ -377,7 +377,7 @@ abstract class Sphinx_Source extends ViewableData {
 		$this->attributes = $res['attributes'];
 		
 		$this->manyManys = $this->Searchable->sphinxManyManyAttributes();
-		
+
 		/* Build the actual query */
 		$baseTable = ClassInfo::baseDataClass($baseClass);
 
@@ -460,6 +460,16 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 
 		if ($this->prequery) $query = DB::query($this->prequery);
 
+		// Fetch many-many data. The query we are given selects all M-M for this type of object. Note this produces an array
+		// of values for each M-M, which maps id=>array of mapps values, where id is the 64-bit class + ID.
+		$manyManyData = array();
+		foreach ($this->manyManys as $name => $query) {
+			$q = DB::query($query);
+			$values = array();
+			foreach ($q as $row) $values[$row["id"]][] = $row[$name];
+			$manyManyData[$name] = $values;	
+		}
+
 		$query = $this->qry->execute();
 
 		foreach ($query as $row) {
@@ -483,12 +493,10 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 			}
 
 			// Many-to-many relationships - write the tag with the vaues in a comma delimited list in the element.
-			foreach ($this->manyManys as $name => $query) {
+			foreach ($manyManyData as $name => $values) {
 				$result[] = '    <' . strtolower($name) . '>';
-				$q = DB::query($query);
-				$values = array();
-				foreach ($q as $row) $values[] = $row[$name];
-				$result[] = implode(",", array_unique($values));
+
+				if (isset($values[$row["id"]])) $result[] = implode(",", $values[$row["id"]]);
 				$result[] = '    </' . strtolower($name) . '>';
 			}
 

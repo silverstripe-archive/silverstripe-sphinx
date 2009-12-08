@@ -328,7 +328,7 @@ class SphinxSearchable extends DataObjectDecorator {
 		if (isset($conf['extra_many_many'])) {
 			foreach ($conf['extra_many_many'] as $key => $value) $attributes[$key] = $value;
 		}
-
+		
 		return $attributes;
 	}
 	
