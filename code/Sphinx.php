@@ -128,27 +128,32 @@ class Sphinx extends Controller {
 		// which is what we're building here.
 		foreach ($classes as $class) {
 			$sig = $this->getSearchSignature($class);
+
+			$conf = singleton($class)->stat('sphinx');
+			$mode = ($conf && isset($conf['mode'])) ? $conf['mode'] : '';
+			if ($mode == '') $mode = "sql";
+
 			if (isset($index_desc[$sig])) {
 				$base = $index_desc[$sig]["baseClass"];
 				if (is_subclass_of($base, $class)) { // we have a better base class
 					$index_desc[$sig]["baseClass"] = $class;
 					$index_desc[$sig]["classes"][] = $class;
+					$index_desc[$sig]["mode"] = $mode;
 				}
 				else if (is_subclass_of($class, $base)) $index_desc[$sig]["classes"][] = $class;
-				else $index_desc[$sig] = array("classes" => array($class), "baseClass" => $class);
+				else $index_desc[$sig] = array("classes" => array($class), "baseClass" => $class, "mode" => $mode);
 			}
 			else
-				$index_desc[$sig] = array("classes" => array($class), "baseClass" => $class);
+				$index_desc[$sig] = array("classes" => array($class), "baseClass" => $class, "mode" => $mode);
 		}
 
 //echo "indexes to build:"; print_r($index_desc);
 
 		$result = array();
 		foreach ($index_desc as $sig => $desc) {
-			$classes = $desc['classes'];
 			$baseClass = $desc['baseClass'];
 			if (!isset($this->indexes[$baseClass])) {
-				$indexes = array(new Sphinx_Index($classes, $baseClass));
+				$indexes = array(new Sphinx_Index($desc['classes'], $baseClass, $desc['mode']));
 				SphinxVariants::alterIndexes($baseClass, $indexes);
 
 				$this->indexes[$baseClass] = $indexes;
@@ -219,7 +224,7 @@ class Sphinx extends Controller {
 		
 		echo nl2br(implode("\n", $res));
 	}	
-	
+
 	/**
 	 * Re-build sphinx's indexes
 	 * @param $idxs array - A list of indexes to rebuild as strings, or null to rebuild all indexes
@@ -228,7 +233,7 @@ class Sphinx extends Controller {
 		// If we're being called as a controller, or we're called with no indexes specified, rebuild all indexes 
 		if ($idxs instanceof HTTPRequest || $idxs === null) $idxs = $this->indexes();
 		elseif (!is_array($idxs)) $idxs = array($idxs);
-		
+
 		// If we were passed an array of Sphinx_Index's, get the list of just the names
 		foreach ($idxs as $idx) {
 			if ($idx instanceof Sphinx_Index) $idxs = array_map(create_function('$idx', 'return $idx->Name;'), $idxs);
@@ -241,7 +246,7 @@ class Sphinx extends Controller {
 		// Generate Sphinx index
 		$idxlist = implode(' ', $idxs);
 		`{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist`;
-		
+
 		// Generate word lists
 		$p = new PureSpell();
 		$p->load_dictionary("{$this->VARPath}/sphinx.psdic");
@@ -252,7 +257,7 @@ class Sphinx extends Controller {
 		}
 		
 		$p->save_dictionary("{$this->VARPath}/sphinx.psdic");
-				
+
 		return 'OK';
 	}
 	
@@ -324,14 +329,42 @@ class Sphinx extends Controller {
 		}
 		return $this->Speller;
 	}
-	
+
+	/**
+	 * Generate the XML for a given source. We have to construct the indexes structure and find the source object,
+	 * and delegate to it to generate the XML response.
+	 * @param $source
+	 * @return unknown_type
+	 */
+	function xmlIndexContents($sourceName) {
+		foreach ($this->indexes() as $index) {
+			foreach ($index->Sources as $source) if ($source->Name == $sourceName) return $source->xmlIndexContents();
+		}
+	}
+
+	/**
+	 * Return all index objects that index data for the specified class. 
+	 * @param $className		Class that is indexed.
+	 * @return unknown_type
+	 */
+	function getIndexesForClass($className) {
+		$result = array();
+		foreach ($this->indexes() as $baseClass => $index) {
+			if (in_array($className, $index->SearchClasses)) $result[] = $index;
+		}
+		return $result;
+	}
 }
 
-class Sphinx_Source extends ViewableData {
+/**
+ * Represents a source of data for an index. Two sources are currently supported, sql and xmlpipes, each subclassed. 
+ */
+abstract class Sphinx_Source extends ViewableData {
 	function __construct($classes, $baseClass) {
 		$this->SearchClasses = $classes;
 		$this->Name = $baseClass;
 		$this->Searchable = singleton($baseClass);
+		$this->BaseClass = $baseClass;
 		
 		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
 		
@@ -347,24 +380,124 @@ class Sphinx_Source extends ViewableData {
 		
 		/* Build the actual query */
 		$baseTable = ClassInfo::baseDataClass($baseClass);
-		
+
+		$select = "";
+		foreach ($this->select as $alias => $value) $select .= "$value as {$bt}$alias{$bt},";
+		$select = substr($select, 0, -1);
 		$this->qry = $this->Searchable->buildSQL(null, null, null, null, true);
-		$this->qry->select($this->select);
+		$this->qry->select($select);
 		$this->qry->where = array("{$bt}$baseTable{$bt}.{$bt}ClassName{$bt} in ('" . implode("','", $this->SearchClasses) . "')");
 		$this->qry->orderby = null;
 		
 		$this->Searchable->extend('augmentSQL', $this->qry);
 	}
-	
+
+	abstract function config();
+
+	/**
+	 * Factory method to create a source given the mode.
+	 * @param $classes			Constructor parameter
+	 * @param $baseClass		Constructor parameter
+	 * @param $mode				One of "sql" or "xmlpipe"
+	 * @return unknown_type		Derivative of Sphinx_Source
+	 */
+	static function source_from_mode($classes, $baseClass, $mode) {
+		if ($mode == "xmlpipe") $class = "Sphinx_Source_XMLPipe";
+		else $class = "Sphinx_Source_SQL";
+
+		return new $class($classes, $baseClass);
+	}
+}
+
+class Sphinx_Source_SQL extends Sphinx_Source {
 	function config() {
 		$conf = array();
 		$conf[] = "source {$this->Name}Src : BaseSrc {";
+
 		if (defined('DB::USE_ANSI_SQL')) $conf[] = "sql_query_pre = SET sql_mode = 'ansi'";
 		if ($this->prequery) $conf[] = "sql_query_pre = {$this->prequery}";
 		$conf[] = "sql_query = {$this->qry}";
-		$conf[] = implode("\n\t", $this->attributes);
-		$conf[] = implode("\n\t", $this->manyManys);
+		foreach ($this->attributes as $name => $type) $conf[] = "sql_attr_$type = $name";
+		foreach ($this->manyManys as $name => $query) $conf[] = "sql_attr_multi = uint $name from query; " . $query;
+
 		return implode("\n\t", $conf) . "\n}\n";
+	}
+}
+
+class Sphinx_Source_XMLPipe extends Sphinx_Source {
+	function config() {
+		$conf = array();
+		$conf[] = "source {$this->Name}Src : BaseSrc {";
+		$conf[] = "type = xmlpipe2";
+		$conf[] = "xmlpipe_command = " . Director::baseFolder() . "/sapphire/sake sphinxxmlsource/" . $this->Name;
+
+		return implode("\n\t", $conf) . "\n}\n";
+	}
+
+	/**
+	 * When running in xmlpipe mode, this should return the full XML response.
+	 * @return unknown_type
+	 */
+	function xmlIndexContents() {
+		$result = array();
+		$result[] = '<?xml version="1.0" encoding="utf-8"?>';
+		$result[] = '<sphinx:docset>';
+
+		$conf = singleton($this->BaseClass)->stat("sphinx");
+		$externalFields = ($conf && isset($conf['external_content'])) ? $conf['external_content'] : null;
+	
+		$result[] = '  <sphinx:schema>';
+		foreach ($this->select as $alias => $value) {
+			if (!isset($this->attributes[$alias])) $result[] = '    <sphinx:field name="' . strtolower($alias) . '"/>';
+		}
+		if ($externalFields) foreach ($externalFields as $alias => $function) $result[] = '    <sphinx:field name="' . strtolower($alias) . '"/>';
+
+		foreach ($this->attributes as $name => $type) $result[] = '    <sphinx:attr name="' . strtolower($name) . '" type="' . (($type == "uint") ? "int" : $type) . '" />';
+
+		// Many to many relationships
+		foreach ($this->manyManys as $name => $query) $result[] = '    <sphinx:attr name="' . strtolower($name) . '" type="multi" />';
+		$result[] = '  </sphinx:schema>';
+
+		if ($this->prequery) $query = DB::query($this->prequery);
+
+		$query = $this->qry->execute();
+
+		foreach ($query as $row) {
+			$result[] = '  <sphinx:document id="' . $row["id"] . '">';
+
+			// Single fields and regular attributes
+			foreach ($this->select as $alias => $value) {
+				$out = $row[$alias];
+				$out = preg_replace("/[^\x9\xA\xD\x20-\x7F]/", "", $out);
+				// If its not an attribute it must be a search field, so quote it.
+				if (!isset($this->attributes[$alias]) && $out) $out = "\n<![CDATA[\n$out\n]]>\n";
+				if ($alias != "index") $result[] = '    <' . strtolower($alias) . '>' . $out . '</' . strtolower($alias) . '>';
+			}
+
+			// External sources
+			if ($externalFields) foreach ($externalFields as $alias => $function) {
+				$out = call_user_func($function, $row["_id"]);
+				$out = preg_replace("/[^\x9\xA\xD\x20-\x7F]/", "", $out);
+				if ($out) $out = "\n<![CDATA[\n$out\n]]>\n";
+				$result[] = '    <' . strtolower($alias) . '>' . $out . '    </' . strtolower($alias) . '>';
+			}
+
+			// Many-to-many relationships - write the tag with the vaues in a comma delimited list in the element.
+			foreach ($this->manyManys as $name => $query) {
+				$result[] = '    <' . strtolower($name) . '>';
+				$q = DB::query($query);
+				$values = array();
+				foreach ($q as $row) $values[] = $row[$name];
+				$result[] = implode(",", array_unique($values));
+				$result[] = '    </' . strtolower($name) . '>';
+			}
+
+			$result[] = '  </sphinx:document>';
+		}
+
+		$result[] = '</sphinx:docset>';
+
+		return implode("\n", $result);
 	}
 }
 
@@ -372,25 +505,26 @@ class Sphinx_Source extends ViewableData {
  * Handles introspecting a DataObject to generate a source and an index configuration for that DataObject
  */
 class Sphinx_Index extends ViewableData {
-	function __construct($classes, $baseClass) {
+	function __construct($classes, $baseClass, $mode) {
 		$this->data = singleton('Sphinx');
 		
 		$this->SearchClasses = $classes;
 		$this->Name = $baseClass;
 		$this->BaseClass = $baseClass;
+		$this->Mode = $mode;
 		
 		$this->isDelta = false;
 
 		$this->Sources = array();
-		$this->Sources[] = new Sphinx_Source($classes, $baseClass);
+		$this->Sources[] = Sphinx_Source::source_from_mode($classes, $baseClass, $mode);
 
 		$this->baseTable = null;
 			
 		if (!defined('DB::USE_ANSI_SQL')) $pattern = '/^`([^`]+)`.`SphinxPrimaryIndexed`/';
 		else $pattern = '/^"([^"]+)"."SphinxPrimaryIndexed"/';
-			
-		foreach ($this->Sources[0]->qry->select as $k => $field) {
-			if (preg_match($pattern, $field, $m)) { 
+
+		foreach ($this->Sources[0]->select as $alias => $value) {
+			if (preg_match($pattern, $value, $m)) { 
 				$this->baseTable = $m[1];
 				break; 
 			} 

@@ -18,6 +18,8 @@
 		"extra_fields" => array("_contenttype" => "Page::getComputedValue"),
 		'filterable_many_many' => '*',
 		'extra_many_many' => array('documents' => 'select (1468840814<<32) | PageID AS id, DocumentID AS Documents FROM Page_Documents')
+		"mode" => "xmlpipe",
+		"external_content" => array("field" => array("myclass", "somefunc"))
 	);
 `
 
@@ -42,7 +44,17 @@
 * extra_many_many - this allows injection of many-many attributes bypassing sapphire's generation of SQL automatically of the relationship. This
   is specifically useful for working around an issue with sapphire 2.4, which generates ANSI compliant SQL statements, but these fail in
   sphinx indexing if the database server is not set to use ANSI compliant, because there is no way to control ansi-mode for the query
-  that retrieves many-many data in sphinx (a bug in sphinx: http://www.sphinxsearch.com/bugs/view.php?id=394)
+  that retrieves many-many data in sphinx (a bug in sphinx: http://www.sphinxsearch.com/bugs/view.php?id=394). This is not an issue
+  if mode is 'xmlpipe'.
+* mode - this determines the mode used by the sphinx indexer to retrieve data. One of the values:
+  * 'sql' (default) - SQL statements are used. The statements are written to the sphinx.conf file. Indexer handles database connections itself.
+  * 'xmlpipe' - the indexer runs a command that invokes the SphinxXMLPipe controller to get the data to index as an XML stream. Experimental
+    at this stage (well, more experimental than SQL). This is likely to be slower than SQL indexing. Has the advantage that content outside
+    the database can be included in the index.
+* external_content provides a hook to provide additional content to add to the search index. The value provided is passed as the function
+  argument to call_user_func, so can be a function, array($instance, $functionName) for an instance method, or
+  array($className, $functionName) for a static function. NOTE: This is only applicable when mode is 'xmlpipe'. It is ignored if
+  mode is 'sql'. The function is called with a single parameter, the ID of the decorated instance.
 
 ## Parameters of the Constructor
 
@@ -66,6 +78,14 @@ Ways to control these factors include:
 * For classes that change very infrequently, or are small, consider disabling delta indices.
 * For versioned pages, if search is not required in the CMS, consider explicit control over the stages that are indexed. (e.g. only index Live
   if searching is only enabled  at the front end.)
+
+# Known Issues
+
+## Re-indexing Many-Many Relationships on Write
+
+Currently many-many relationships are not re-indexed on write, as there is no way to reliably detect changes in the components if the decorated
+object doesn't change. So if changes are made in a M-M, these need to be re-indexed by calling $do->sphinxComponentsChanged() on the decorated
+instance. This will re-index the object in the delta. Otherwise the M-M changes will be picked up at the next primary re-index.
 
 # Troubleshooting
 

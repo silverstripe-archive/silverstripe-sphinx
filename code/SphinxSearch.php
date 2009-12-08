@@ -99,7 +99,7 @@ class SphinxSearch extends Object {
 			'sortmode' => 'relevance',
 			'sortarg' => null
 		),$args);
-		
+
 		/* If we want to search children, add the child classes to the list of classes to search */
 		if ($args['include_child_classes']) {
 			$children = array();

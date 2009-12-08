@@ -86,7 +86,8 @@ class SphinxSearchable extends DataObjectDecorator {
 	 */
 	function sphinxDirty() {
 		$sing = singleton('Sphinx');
-		$mains = array_filter($sing->indexes($this->owner->class), create_function('$i', 'return !$i->isDelta;'));
+		$mains = array_filter($sing->getIndexesForClass($this->owner->class), create_function('$i', 'return !$i->isDelta;'));
+//		$mains = array_filter($sing->indexes($this->owner->class), create_function('$i', 'return !$i->isDelta;'));
 		$names = array_map(create_function('$idx', 'return $idx->Name;'), $mains);
 		
 		$sing->connection()->UpdateAttributes(implode(';', $names), array("_dirty"), array($this->sphinxDocumentID() => array(1)));
@@ -97,10 +98,11 @@ class SphinxSearchable extends DataObjectDecorator {
 	 */
 	function reindex() {
 		$sing = singleton('Sphinx');
-		$deltas = array_filter($sing->indexes($this->owner->class), create_function('$i', 'return $i->isDelta;'));
+		$deltas = array_filter($sing->getIndexesForClass($this->owner->class), create_function('$i', 'return $i->isDelta;'));
+//		$deltas = array_filter($sing->indexes($this->owner->class), create_function('$i', 'return $i->isDelta;'));
 		$sing->reindex($deltas);
 	}
-	
+
 	/**
 	 * Get a snippet highlighting the search terms
 	 * 
@@ -180,6 +182,13 @@ class SphinxSearchable extends DataObjectDecorator {
 		return $ret;
 	}
 
+	/**
+	 * Return the field configuration required to produced indices.
+	 * Returns an array:
+	 *   'select' => array of $alias => $value pairs (in sql, written as 'value as alias')
+	 *   'attributes' => array of $field => $type, where $type is the sphinx type name (e.g. boolean, uint)
+	 * @return unknown_type
+	 */
 	function sphinxFieldConfig() {
 		$base = ClassInfo::baseDataClass($this->owner->class);
 		$baseid = SphinxSearch::unsignedcrc($base);
@@ -189,16 +198,20 @@ class SphinxSearchable extends DataObjectDecorator {
 		
 		$select = array(
 			// Select the 64 bit combination baseid << 32 | itemid as the document ID
-			"($baseid<<32)|{$bt}$base{$bt}.{$bt}ID{$bt} AS id", 
+			"id" => "($baseid<<32)|{$bt}$base{$bt}.{$bt}ID{$bt}", 
 			// And select each value individually for filtering and easy access 
-			"{$bt}$base{$bt}.ID AS _id",
-			"$baseid AS _baseid",
-			"$classid AS _classid",
-			"0 as _dirty"
-		); 
-		$attributes = array('sql_attr_uint = _id', 'sql_attr_uint = _baseid', 'sql_attr_uint = _classid', 'sql_attr_bool = _dirty');
+			"_id" => "{$bt}$base{$bt}.ID",
+			"_baseid" => $baseid,
+			"_classid" => $classid,
+			"_dirty" => "0"
+		);
+		$attributes = array(
+			"_id" => "uint",
+			"_baseid" => "uint",
+			"_classid" => "uint",
+			"_dirty" => "bool"
+		);
 
-//echo "fields for {$this->owner->class}:"; print_r($this->sphinxFields($this->owner->class));
 		foreach($this->sphinxFields($this->owner->class) as $name => $info) {
 			list($class, $type, $filter, $sortable, $stringType, $value) = $info;
 			
@@ -208,49 +221,53 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'Text':
 				case 'HTMLVarchar':
 				case 'HTMLText':
-					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
+					$select[$name] = "{$bt}$class{$bt}.{$bt}$name{$bt}";
 
 					// If the field is sortable, we generate an extra column of the 1st four chars packed to assist in
 					// sorting, since sphinx doesn't directly allow sorting by strings.
 					if ($sortable) {
-						$select[] = "(ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},1,1)) << 24) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},2,1)) << 16) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},3,1)) << 8) | ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},4,1)) as {$bt}_packed_$name{$bt}";
-						$attributes[] = "sql_attr_uint = _packed_$name";
+						$select["_packed_$name"] = "(ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},1,1)) << 24) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},2,1)) << 16) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},3,1)) << 8) | ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},4,1))";
+						$attributes["_packed_$name"] = "uint";
 					}
 					break;
 
 				case 'Boolean':
-					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
-					if ($filter) $attributes[] = "sql_attr_bool = $name";
+					$select[$name] = "{$bt}$class{$bt}.{$bt}$name{$bt}";
+					if ($filter) $attributes[$name] = "bool";
 					break;
 
 				case 'Date':
 				case 'SSDatetime':
 				case 'SS_Datetime':
-					$select[] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt}) AS {$bt}$name{$bt}";
-					if ($filter) $attributes[] = "sql_attr_timestamp = $name";
+					$select[$name] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt})";
+					if ($filter) $attributes[$name] = "timestamp";
 					break;
 
 				case 'ForeignKey':
 				case 'Int':
-					$select[] = "{$bt}$class{$bt}.{$bt}$name{$bt} AS {$bt}$name{$bt}";
-					if ($filter) $attributes[] = "sql_attr_uint = $name";
+					$select[$name] = "{$bt}$class{$bt}.{$bt}$name{$bt}";
+					if ($filter) $attributes[$name] = "uint";
 					break;
 					
 				case 'CRCOrdinal':
-					$select[] = "CRC32({$bt}$class{$bt}.{$bt}$name{$bt}) AS {$bt}$name{$bt}";
-					if ($filter) $attributes[] = "sql_attr_uint = $name";
+					$select[$name] = "CRC32({$bt}$class{$bt}.{$bt}$name{$bt})";
+					if ($filter) $attributes[$name] = "uint";
 					break;	
 
 				case 'Custom':
-					$select[] = "$value as {$bt}$name{$bt}";
-					if ($filter) $attributes[] = "sql_attr_uint = $name";
+					$select[$name] = "$value";
+					if ($filter) $attributes[$name] = "uint";
 				default:
 			}
 		}
 
 		return array('select' => $select, 'attributes' => $attributes);
 	}
-	
+
+	/**
+	 * Return an array of has-many relationship. It's an array of $field => $query.
+	 * @return unknown_type
+	 */
 	function sphinxHasManyAttributes() {
 		$attributes = array();
 		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
@@ -274,7 +291,11 @@ class SphinxSearchable extends DataObjectDecorator {
 		
 		return $attributes;
 	}
-	
+
+	/**
+	 * Return an array of many to many relationships. It's an array of $field => $query
+	 * @return unknown_type
+	 */
 	function sphinxManyManyAttributes() {
 		$attributes = array();
 		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
@@ -300,12 +321,12 @@ class SphinxSearchable extends DataObjectDecorator {
 				$qry->select(array("($baseid<<32)|{$bt}$table{$bt}.{$bt}$parentField{$bt} AS id", "{$bt}$table{$bt}.{$bt}$componentField{$bt} AS $name"));
 				$qry->groupby = array();
 
-				$attributes[] = "sql_attr_multi = uint $name from query; " . $qry;
+				$attributes[$name] = $qry;
 			}
 		}
 
 		if (isset($conf['extra_many_many'])) {
-			foreach ($conf['extra_many_many'] as $key => $value) $attributes[] = "sql_attr_multi = uint $key from query; " . $value;
+			foreach ($conf['extra_many_many'] as $key => $value) $attributes[$key] = $value;
 		}
 
 		return $attributes;
@@ -352,6 +373,16 @@ class SphinxSearchable extends DataObjectDecorator {
 		$this->reindex();
 	}
 	
+	/**
+	 * Helper method provided for callers that change a many-many relationship that is indexed, since the write() chain
+	 * won't detect this case. Basically flag it dirty and re-index into the delta.
+	 * @return unknown_type
+	 */
+	function sphinxComponentsChanged() {
+		$this->sphinxDirty();
+		$this->reindex();
+	}
+
 	/*
 	 * This uses a function called only on dev/build construction to patch in also calling Sphinx::configure when dev/build is called
 	 */
