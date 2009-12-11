@@ -1,0 +1,6 @@
+SphinxTestBase:
+	fred:
+		IntProp: 11001
+		StringProp: fred
+		FilterProp: 11002
+		NonFilterProp: 11003
