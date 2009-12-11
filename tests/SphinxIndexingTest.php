@@ -124,6 +124,15 @@ class SphinxIndexingTest extends SapphireTest {
 
 		$sectionDescB = $this->getConfigSection("source SphinxTestDescendantBSrc");
 		// check that descendant B has its own section, and the variances are correct.
+		$this->assert(count($sectionDescB) > 0, "SphinxTestDescendantBSrc has its own index");
+		if (count($sectionDescB) > 0) {
+			$extra_prop_ok = false;
+			foreach ($sectionDescB as $item) {
+				list($key, $value) = $item;
+				if ($key == "sql_attr_uint" && $value == "DescBProp") $extra_prop_ok = true;
+			}
+			$this->assertTrue($extra_prop_ok, "Descendant B includes an attribute for its own property");
+		}
 	}
 
 	function testSourceXML() {
