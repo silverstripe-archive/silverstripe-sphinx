@@ -124,7 +124,7 @@ class SphinxIndexingTest extends SapphireTest {
 
 		$sectionDescB = $this->getConfigSection("source SphinxTestDescendantBSrc");
 		// check that descendant B has its own section, and the variances are correct.
-		$this->assert(count($sectionDescB) > 0, "SphinxTestDescendantBSrc has its own index");
+		$this->assertTrue(count($sectionDescB) > 0, "SphinxTestDescendantBSrc has its own index");
 		if (count($sectionDescB) > 0) {
 			$extra_prop_ok = false;
 			foreach ($sectionDescB as $item) {
@@ -136,7 +136,33 @@ class SphinxIndexingTest extends SapphireTest {
 	}
 
 	function testSourceXML() {
-		
+		$item = $this->objFromFixture("SphinxTestXMLPiped", "joe");
+		$this->assertTrue($item != null, "Test XML item is present");
+
+		// check that the source and index are present for SphinxTestXMLPiped
+		// Get the source structure
+		$section = $this->getConfigSection("source SphinxTestXMLPipedSrc");
+
+		$this->assertTrue(count($section) != 0, "SphinxTestXMLPipedSrc exists");
+		if (count($section) > 0) {
+			$type = "";
+			$command = "";
+			$extras = false;
+			foreach ($section as $item) {
+				list($key,$value) = $item;
+				if ($key == "type") $type = $value;
+				else if ($key == "xmlpipe_command") $command = $value;
+				else $extras = true;
+			}
+
+			$this->assertTrue($type != "", "XML pipe type defined");
+			$this->assertTrue($command != "", "XML pipe command defined");
+			$this->assertTrue(!$extras, "XML pipe config has no extra stuff");
+
+			// Run the command and make sure we don't get errors
+			$xml = `$command`;
+			echo $xml;
+		}
 	}
 
 	/**

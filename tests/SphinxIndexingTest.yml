@@ -4,3 +4,10 @@ SphinxTestBase:
 		StringProp: fred
 		FilterProp: 11002
 		NonFilterProp: 11003
+
+SphinxTestXMLPiped:
+	joe:
+		IntPropX: 12001
+		StringPropX: joe
+		FilterPropX: 12002
+		NonFilterPropX: 12003
