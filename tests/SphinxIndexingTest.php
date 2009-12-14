@@ -1,7 +1,7 @@
 <?php
 
 class SphinxIndexingTest extends SapphireTest {
-	static $fixture_file = 'sphinx/tests/SphinxIndexingTest.yml';
+	static $fixture_file = 'sphinx/tests/SphinxTest.yml';
 
 	static $sphinx;
 
@@ -15,7 +15,6 @@ class SphinxIndexingTest extends SapphireTest {
 	/**
 	 * @TODO XMLPipes/command line
 	 * @TODO XMLPipes/command generates parsable XML
-	 * @TODO XMLPipes/command/xml has necessary components
 	 * @TODO Update to object re-indexes delta
 	 * @TODO re-index where there are deltas result in empty delta index, items then in primary index
 	 * @TODO indexer generates non-empty files where there is indexable content
@@ -159,9 +158,16 @@ class SphinxIndexingTest extends SapphireTest {
 			$this->assertTrue($command != "", "XML pipe command defined");
 			$this->assertTrue(!$extras, "XML pipe config has no extra stuff");
 
-			// Run the command and make sure we don't get errors
-			$xml = `$command`;
-			echo $xml;
+			// Validate the command. We can't execute it directly, because it will run sake but won't be in the test environment. So
+			// we syntax check the command, extract the source out of it, and run the controller directly to get the XML, then
+			// we can validate it.
+			$this->assertTrue(preg_match('/sapphire\/sake sphinxxmlsource\/(\w+)/', $command, $matches) > 0, "XML pipe command runs sake");
+			$c = new SphinxXMLPipeController();
+			$xml = $c->produceSourceDataInternal($matches[1]);
+			$xml = preg_replace("/<sphinx\:/", "<", $xml); // strip namespace prefix because simplexml doesn't understand it
+			$xml = preg_replace("/<\/sphinx\:/", "</", $xml);
+			$data = simplexml_load_string($xml);
+			$this->assertTrue($data != null, "XML Pipe XML data parsed OK");
 		}
 	}
 

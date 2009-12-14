@@ -6,7 +6,7 @@
  * @author mstephens
  *
  */
-class SphinxTestBase extends DataObject {
+class SphinxTestBase extends DataObject implements TestOnly {
 	static $db = array(
 		"IntProp" => "Int",
 		"StringProp" => "Varchar",

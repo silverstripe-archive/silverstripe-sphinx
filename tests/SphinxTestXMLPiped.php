@@ -1,6 +1,6 @@
 <?php
 
-class SphinxTestXMLPiped extends DataObject {
+class SphinxTestXMLPiped extends DataObject implements TestOnly {
 	static $db = array(
 		"IntPropX" => "Int",
 		"StringPropX" => "Varchar",

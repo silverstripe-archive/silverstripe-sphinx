@@ -1,0 +1,27 @@
+SphinxTestBase:
+	fred:
+		ID: 11
+		IntProp: 11001
+		StringProp: fred
+		FilterProp: 11002
+		NonFilterProp: 11003
+	marvin:
+		ID: 12
+		IntProp: 12001
+		StringProp: marvin
+		FilterProp: 12002
+		NonFilterProp: 12003
+	zaphod:
+		ID: 13
+		IntProp: 13001
+		StringProp: zaphod
+		FilterProp: 13002
+		NonFilterProp: 13003
+
+SphinxTestXMLPiped:
+	joe:
+		ID: 100
+		IntPropX: 100001
+		StringPropX: joe
+		FilterPropX: 100002
+		NonFilterPropX: 100003

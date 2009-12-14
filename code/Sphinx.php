@@ -29,6 +29,9 @@ class Sphinx extends Controller {
 	/** Set a tcp port. By default, searchd uses a unix socket in var_path. Set a port here or as SS_SPHINX_TCP_PORT to use tcp socket listening on this port on localhost instead */ 
 	static $tcp_port = null;
 
+	static $client_class = "SphinxClient";
+	static $client_class_param = null;	// used to pass SapphireTest object into the controller without coupling
+
 	/** What stop words list to use. null => default list. array('word1','word2') => those words. path as string => that file of words. false => no stopwords list */
 	static $stop_words = null;
 	
@@ -295,6 +298,12 @@ class Sphinx extends Controller {
 		if ($this->status() == 'Running') user_error('Could not stop sphinx searchd');
 	}
 	
+	
+	function setClientClass($class, $param = null) {
+		self::$client_class = $class;
+		self::$client_class_param = $param;
+	}
+
 	/**
 	 * Returns a SphinxClient API connection. Starts server if not running.
 	 */
@@ -303,11 +312,13 @@ class Sphinx extends Controller {
 
 		require_once(Director::baseFolder() . '/sphinx/thirdparty/sphinxapi.php');
 
-		$co = new SphinxClient;
+		$connClass = self::$client_class;
+		$co = self::$client_class_param ? new $connClass(self::$client_class_param) : new $connClass;
+
 		$co->setServer($this->Listen);
 		return $co;
 	}
-	
+
 	/**
 	 * Trim indexes of 0 bytes if we're over the 100 limit
 	 */
