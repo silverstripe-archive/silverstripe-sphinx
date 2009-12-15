@@ -12,6 +12,8 @@ class SphinxClientFaker implements TestOnly {
 	public $start = 0;
 	public $pagesize = 10;
 
+	public $filters = array();
+
 	public $testObject;
 
 	function __construct($testObject) {
@@ -29,8 +31,8 @@ class SphinxClientFaker implements TestOnly {
 		$results = array();
 
 		$data = $this->getData($qry);
-Debug::log("raw results are " . print_r($data, true));
-Debug::log("start is $this->start and pagesize is $this->pagesize");
+//Debug::log("start is $this->start and pagesize is $this->pagesize");
+
 		$results['matches'] = array();
 
 		// Add data to results based on start and pagesize
@@ -43,13 +45,22 @@ Debug::log("start is $this->start and pagesize is $this->pagesize");
 
 		$results['total'] = count($data);
 		$results['total_found'] = count($data);
-		Debug::log("fake query results are " . print_r($results, true));
+//		Debug::log("fake query results are " . print_r($results, true));
 		return $results;
 	}
 
 	function SetLimits($start, $pagesize) {
 		$this->start = $start;
 		$this->pagesize = $pagesize;
+	}
+
+	function SetFilter ( $attribute, $values, $exclude=false) {
+		if (!is_array($values)) $valuesd = array($values);
+		$this->filters[] = array($attribute, $values, $exclude);
+	}
+
+	function ResetFilters() {
+		$this->filters = array();
 	}
 
 	/**
@@ -61,15 +72,47 @@ Debug::log("start is $this->start and pagesize is $this->pagesize");
 		$result = array();
 		switch ($qry) {
 			case "basic":
+				// Just return something
 				$this->addFakeSearchResult($result, "fred");
 				break;
-			case "sort":
+
+			case "sort1":
+				// Return a set smaller than the page size but which requires text sorting, and
+				// at least two where the packed attribute is the same (1st four characters the same)
+				// These are in the order of _packed_StringProp
+				$this->addFakeSearchResult($result, "longname1");
+				$this->addFakeSearchResult($result, "longname2");
+				$this->addFakeSearchResult($result, "longname9");
 				$this->addFakeSearchResult($result, "fred");
-				$this->addFakeSearchResult($result, "marvin");
 				$this->addFakeSearchResult($result, "zaphod");
 				break;
 
-			//			case "paged":
+			case "sort2":
+				// Return a set which is larger than page size (assumed here as 5), where all results have the same
+				// packed key.
+				// These are in the order of _packed_StringProp
+				$this->addFakeSearchResult($result, "longname1");
+				$this->addFakeSearchResult($result, "longname2");
+				$this->addFakeSearchResult($result, "longname3");
+				$this->addFakeSearchResult($result, "longname4");
+				$this->addFakeSearchResult($result, "longname5");
+				$this->addFakeSearchResult($result, "longname6"); // not included in 5, but needed to avoid case 1
+				break;
+
+			case "sort3":
+				// Return a set which is larger than page size (assumed here as 5), where the first and last results
+				// have different packed keys.
+				// These are in the order of _packed_StringProp
+				$this->addFakeSearchResult($result, "longname6");
+				$this->addFakeSearchResult($result, "longname7");
+				$this->addFakeSearchResult($result, "longname8");
+				$this->addFakeSearchResult($result, "longname9");
+				$this->addFakeSearchResult($result, "fred");
+				$this->addFakeSearchResult($result, "zaphod"); // not included in 5, but needed to avoid case 1
+				break;
+				
+			case "sortcase1":
+				//			case "paged":
 				default:
 				user_error("SphinxClientFaker is not too bright, and doesnt understand the qry term '" . $qry . "'");
 				break;
@@ -85,16 +128,26 @@ Debug::log("start is $this->start and pagesize is $this->pagesize");
 	 */
 	private function addFakeSearchResult(&$arr, $fixtureName) {
 		$obj = $this->testObject->getTestObject("SphinxTestBase", $fixtureName);
-
 		$info = array();
 		$info['attrs'] = array();
 		$info['attrs']['_id'] = $obj->ID;
 		$info['attrs']['_classid'] = 2037589277; // class id of SphinxTestBase
 		$info['attrs']['StringProp'] = $obj->StringProp; 
+		$info['attrs']['_packed_StringProp'] = SphinxSearch::packedKey($obj->StringProp);
 
-		$bigid = 2037589277 << 32 | $obj->ID;
+		$bigid = SphinxSearch::combinedwords(2037589277, $obj->ID);
+//		$bigid = (2037589277 << 32) | $obj->ID;
 
-		$arr[$bigid] = $info;
+		// Apply filters
+		$matches = true;
+
+		foreach ($this->filters as $f) {
+			list($attr, $values, $exclude) = $f;
+			$in = isset($info['attrs'][$attr]) ? in_array($info['attrs'][$attr], $values) : false;
+			if ((!$exclude && !$in) || ($exclude && $in)) $matches = false;
+		}
+		
+		if ($matches) $arr[$bigid] = $info;
 	}
 
 	function __call($name, $args) {

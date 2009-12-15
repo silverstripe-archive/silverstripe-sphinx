@@ -6,10 +6,15 @@ class SphinxIndexingTest extends SapphireTest {
 	static $sphinx;
 
 	static function set_up_once() {
+		parent::set_up_once();
+	}
+
+	function onceOnly() {
+		if (self::$sphinx) return;
+
 		self::$sphinx = new Sphinx();
 		self::$sphinx->configure();
-		self::$sphinx->reindex();
-		parent::set_up_once();
+//		self::$sphinx->reindex();
 	}
 
 	/**

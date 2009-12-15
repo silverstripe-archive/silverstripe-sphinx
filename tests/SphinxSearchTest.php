@@ -3,11 +3,9 @@
 class SphinxSearchTest extends SapphireTest {
 	static $fixture_file = 'sphinx/tests/SphinxTest.yml';
 	
-	static $sphinx;
+	static $sphinx = null;
 
 	static function set_up_once() {
-		self::$sphinx = new Sphinx();
-		self::$sphinx->configure();
 		parent::set_up_once();
 	}
 
@@ -21,6 +19,17 @@ class SphinxSearchTest extends SapphireTest {
 		return $this->objFromFixture($class, $fixture);
 	}
 
+	/**
+	 * We only need to do this once, because its expensive. It's not done in set_up_once, because code called from there
+	 * appears as unexecuted in the coverage reort.
+	 * @return unknown_type
+	 */
+	function onceOnly() {
+		if (self::$sphinx) return;
+
+		self::$sphinx = new Sphinx();
+		self::$sphinx->configure();
+	}
 	/*
 	 * @TODO Basic search
 	 * @TODO Search on text field
@@ -28,6 +37,8 @@ class SphinxSearchTest extends SapphireTest {
 	 * @TODO boundary cases on text sorting
 	 */
 	function testSearchBasic() {
+		$this->onceOnly();
+
 		self::$sphinx->setClientClass("SphinxClientFaker", $this);
 
 		$res = SphinxSearch::search(array('SphinxTestBase'),
@@ -36,13 +47,49 @@ class SphinxSearchTest extends SapphireTest {
 		$this->assertTrue($res->Matches->Count() > 0, "Basic search got actual result records");
 	}
 
-	function testSearchTextSort() {
+	function testSearchTextSortCase1() {
+		$this->onceOnly();
+
 		self::$sphinx->setClientClass("SphinxClientFaker", $this);
 
 		$res = SphinxSearch::search(array('SphinxTestBase'),
-								"sort", array( 'require' => array(), 'page' => 0, 'pagesize' => 3, 'sortmode' => "fields", 'sortarg' => array("StringProp" => "asc")));
-		$this->assertTrue($res != null, "Basic search got result object");
-		$this->assertTrue($res->Matches->Count() > 0, "Basic search got actual result records");
+								"sort1", array( 'require' => array(), 'page' => 0, 'pagesize' => 5, 'sortmode' => "fields", 'sortarg' => array("StringProp" => "asc")));
+		$this->assertTrue($res->Matches->Count() == 5, "Sort case 1 has 5 results");
+		$this->assertTrue($this->inStringPropOrder($res->Matches), "Sort case 1 are in correct order");
+	}
+
+	function testSearchTextSortCase2() {
+		$this->onceOnly();
+
+		self::$sphinx->setClientClass("SphinxClientFaker", $this);
+
+		$res = SphinxSearch::search(array('SphinxTestBase'),
+								"sort2", array( 'require' => array(), 'page' => 0, 'pagesize' => 5, 'sortmode' => "fields", 'sortarg' => array("StringProp" => "asc")));
+		$this->assertTrue($res->Matches->Count() == 5, "Sort case 2 has 5 results");
+		$this->assertTrue($this->inStringPropOrder($res->Matches), "Sort case 2 are in correct order");
+	}
+	
+	function testSearchTextSortCase3() {
+		$this->onceOnly();
+
+		self::$sphinx->setClientClass("SphinxClientFaker", $this);
+
+		$res = SphinxSearch::search(array('SphinxTestBase'),
+								"sort3", array( 'require' => array(), 'page' => 0, 'pagesize' => 5, 'sortmode' => "fields", 'sortarg' => array("StringProp" => "asc")));
+		$this->assertTrue($res->Matches->Count() == 5, "Sort case 3 has 5 results");
+		$this->assertTrue($this->inStringPropOrder($res->Matches), "Sort case 3 are in correct order");
+	}
+
+	/**
+	 * Check that a dataset with SphinxTestBase are in correct StringProp order.
+	 */
+	function inStringPropOrder($ds) {
+		$lastValue = null;
+		foreach ($ds as $d) {
+			if ($lastValue && $lastValue > $d->StringProp) return false;
+			$lastValue = $d->StringProp;
+		}
+		return true;
 	}
 }
 

@@ -17,7 +17,42 @@ SphinxTestBase:
 		StringProp: zaphod
 		FilterProp: 13002
 		NonFilterProp: 13003
-
+	longname1:
+		ID: 21
+		IntProp: 21001
+		StringProp: Longname John
+	longname2:
+		ID: 22
+		IntProp: 22001
+		StringProp: Longname Andrew
+	longname3:
+		ID: 23
+		IntProp: 23001
+		StringProp: Longname Chicken little
+	longname4:
+		ID: 24
+		IntProp: 24001
+		StringProp: Longname Hairy Mclary
+	longname5:
+		ID: 25
+		IntProp: 25001
+		StringProp: Longname Chewbacca
+	longname6:
+		ID: 26
+		IntProp: 26001
+		StringProp: Longname Roger Dodger
+	longname7:
+		ID: 27
+		IntProp: 27001
+		StringProp: Longname Alex
+	longname8:
+		ID: 28
+		IntProp: 28001
+		StringProp: Longname Mr Deltoid
+	longname9:
+		ID: 29
+		IntProp: 29001
+		StringProp: Longname He Who Cannot be Named
 SphinxTestXMLPiped:
 	joe:
 		ID: 100
