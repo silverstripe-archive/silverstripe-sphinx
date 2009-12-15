@@ -5,16 +5,17 @@ class SphinxIndexingTest extends SapphireTest {
 
 	static $sphinx;
 
-	static function set_up_once() {
-		parent::set_up_once();
-	}
-
+	/**
+	 * We only need to do this once, because its expensive. It's not done in set_up_once, because code called from there
+	 * appears as unexecuted in the coverage reort.
+	 * @return unknown_type
+	 */
 	function onceOnly() {
 		if (self::$sphinx) return;
 
 		self::$sphinx = new Sphinx();
 		self::$sphinx->configure();
-//		self::$sphinx->reindex();
+		self::$sphinx->reindex(); // required to teest xmlpipe xml-generation
 	}
 
 	/**

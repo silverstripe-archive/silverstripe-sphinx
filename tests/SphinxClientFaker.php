@@ -111,9 +111,7 @@ class SphinxClientFaker implements TestOnly {
 				$this->addFakeSearchResult($result, "zaphod"); // not included in 5, but needed to avoid case 1
 				break;
 				
-			case "sortcase1":
-				//			case "paged":
-				default:
+			default:
 				user_error("SphinxClientFaker is not too bright, and doesnt understand the qry term '" . $qry . "'");
 				break;
 		}
@@ -136,11 +134,9 @@ class SphinxClientFaker implements TestOnly {
 		$info['attrs']['_packed_StringProp'] = SphinxSearch::packedKey($obj->StringProp);
 
 		$bigid = SphinxSearch::combinedwords(2037589277, $obj->ID);
-//		$bigid = (2037589277 << 32) | $obj->ID;
 
 		// Apply filters
 		$matches = true;
-
 		foreach ($this->filters as $f) {
 			list($attr, $values, $exclude) = $f;
 			$in = isset($info['attrs'][$attr]) ? in_array($info['attrs'][$attr], $values) : false;

@@ -5,10 +5,6 @@ class SphinxSearchTest extends SapphireTest {
 	
 	static $sphinx = null;
 
-	static function set_up_once() {
-		parent::set_up_once();
-	}
-
 	/**
 	 * Public function so the SphinxClientFaker can get objects from the fixtures, since it will have a handle on the test object
 	 * but objFromFixture is protected.
@@ -30,11 +26,9 @@ class SphinxSearchTest extends SapphireTest {
 		self::$sphinx = new Sphinx();
 		self::$sphinx->configure();
 	}
-	/*
-	 * @TODO Basic search
-	 * @TODO Search on text field
+
+	/**
 	 * @TODO basic paging
-	 * @TODO boundary cases on text sorting
 	 */
 	function testSearchBasic() {
 		$this->onceOnly();
