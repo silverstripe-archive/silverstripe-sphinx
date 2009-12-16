@@ -34,6 +34,8 @@ class SphinxIndexingTest extends SapphireTest {
 	 * @return unknown_type
 	 */
 	function testConfigurationCreation() {
+		$this->onceOnly();
+
 		$sphinx = self::$sphinx;
 
 		// test conf , psdic and idxs exist
@@ -49,6 +51,8 @@ class SphinxIndexingTest extends SapphireTest {
 
 	// A few checks that we see variant info that we expect to see.
 	function testCheckVariants() {
+		$this->onceOnly();
+
 		$conf = self::$sphinx->VARPath . "/sphinx.conf";
 
 		// SphinxTestBase is decorated with SphinxSearchable and Versioned, and we expect to see all the variants
@@ -59,6 +63,8 @@ class SphinxIndexingTest extends SapphireTest {
 	}
 
 	function testSourceSQL() {
+		$this->onceOnly();
+
 		$section = $this->getConfigSection("source SphinxTestBaseSrc");
 		$this->assertTrue(count($section)>0, "SQL source defined");
 		if (count($section) == 0) return;  // avoid php errors
@@ -112,6 +118,8 @@ class SphinxIndexingTest extends SapphireTest {
 	 * @return unknown_type
 	 */
 	function testIndexCombination() {
+		$this->onceOnly();
+
 		$sectionBase = $this->getConfigSection("source SphinxTestBaseSrc");
 		// check that the query ClassName selection includes both the base and descendant A
 		if (count($sectionBase) > 0) {
@@ -141,6 +149,8 @@ class SphinxIndexingTest extends SapphireTest {
 	}
 
 	function testSourceXML() {
+		$this->onceOnly();
+
 		$item = $this->objFromFixture("SphinxTestXMLPiped", "joe");
 		$this->assertTrue($item != null, "Test XML item is present");
 
