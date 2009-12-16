@@ -59,8 +59,9 @@
 ## Parameters of the Constructor
 
 * excludeByDefault (default false) When false, all properties on sub-classes are automatically indexed, and all non-string fields are
-  made filterable. This gives maximum searchability with the cost of potentially increasing the number of indices. If this is set to true,
-  fields in subclasses are excluded from indexing unless the sub-class specifically defines $searchFields, $filterFields.
+  made filterable. This gives maximum searchability with the cost of potentially increasing the number of indices, and increasing the
+  emory footprint of searchd. If this is set to true, fields in subclasses are excluded from indexing unless the sub-class specifically
+  defines $searchFields, $filterFields.
   e.g. `static $extensions = array('SphinxSearchable(true)'); // disable automatic inclusion of all subclass fields`
 
 # Managing Larger Configurations
@@ -74,7 +75,7 @@ Sphinx performance and resource usage is affected by a number of factors, includ
 Ways to control these factors include:
 
 * Attach the decorator at a deeper level in the class tree. e.g. instead of decorating Page, decorate specific subclasses of Page.
-* Use the excludeByDefault option on the constructor, and explicitly control classes.
+* Use the excludeByDefault option on the constructor, and explicitly control the search, filter and order fields on the class.
 * For classes that change very infrequently, or are small, consider disabling delta indices.
 * For versioned pages, if search is not required in the CMS, consider explicit control over the stages that are indexed. (e.g. only index Live
   if searching is only enabled  at the front end.)
@@ -86,6 +87,12 @@ Ways to control these factors include:
 Currently many-many relationships are not re-indexed on write, as there is no way to reliably detect changes in the components if the decorated
 object doesn't change. So if changes are made in a M-M, these need to be re-indexed by calling $do->sphinxComponentsChanged() on the decorated
 instance. This will re-index the object in the delta. Otherwise the M-M changes will be picked up at the next primary re-index.
+
+## Slow Saving with XML Pipes
+
+Saving pages that are indexed using XML pipes can be very slow in the CMS. This is due to the relatively high overhead of invoking
+the framework from the command line interactively in order to re-index the delta. This is compounded by versioning (which doubles the number
+of writes), cmsworkflow and any other decorator that introduces additional write() calls to the data object.
 
 # Troubleshooting
 
@@ -111,3 +118,12 @@ Ways to reduce the number of indicies:
 ## Sorting Issues
 
 * If sorting on a text field, it must be declared as a sortable column
+
+# Further Enhancements
+
+## Performance of XML Pipes Write
+
+Two things that would help, especially performance of page publishes in the CMS when using xml pipes:
+
+* Queue the requests, and only re-index once on PHP shutdownm, rather than re-index on each write.
+* Possible invoke the reindexer asychronously, so the user does not have any panelty.
