@@ -8,14 +8,11 @@ class SphinxXMLPipeController extends Controller {
 	// Given a source as a url param, get the source and return an XML document that contains all the indexable material in the
 	// the source.
 	function produceSourceData($sourceName = null) {
-		if (!$sourceName) {
+		if (!$sourceName || is_object($sourceName)) {  // controller can be passed in
 			$params = $this->getURLParams();
 			$sourceName = $params['Action'];
 		}
 
-//		Debug::log("Indexing source " . $sourceName);
-
-//	Debug::log("xml is: " . $xmldata);
 		$xmldata = $this->produceSourceDataInternal($sourceName);
 		echo $xmldata;
 	}
