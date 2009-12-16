@@ -112,7 +112,9 @@ class SphinxClientFaker implements TestOnly {
 				break;
 				
 			default:
-				user_error("SphinxClientFaker is not too bright, and doesnt understand the qry term '" . $qry . "'");
+				// Important: anything other than the above values should be ignored and return an empty set,
+				// because Query is called after the main search in the test scenario under some circumstances in an
+				// attempt to provide suggestions, with variations on the spellings of the words above.
 				break;
 		}
 		return $result;
