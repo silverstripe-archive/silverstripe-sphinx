@@ -10,22 +10,53 @@
  * @author Hamish Friedlander <hamish@silverstripe.com>
  */
 class SphinxSearchable extends DataObjectDecorator {
-	
+
+	/**
+	 * Determines when indexes are updated. Possible values are:
+	 *   - "endrequest"	- (default) Reindexing is done only once at the end of the PHP request, and only if a write() or
+	 *     delete() have been done (any op which flags the record dirty). This eliminates unnecessary reindexing when decorators
+	 *     perform additional writes on a data object.
+	 *   - "write"		-	(old behaviour) Reindexing is done on write or delete.
+	 *   - "disabled"	-	Reindexing is disabled, which is useful when writing many SphinxSearchable items (such as during a migration import)
+	 *						where the burden of keeping the Sphinx index updated in realtime is both unneccesary and prohibitive.
+	 * @var unknown_type
+	 */
+	static $reindex_mode = "endrequest";
+
+	static function set_indexing_mode($mode) {
+		$old = self::$reindex_mode;
+
+		self::$reindex_mode = $mode;
+		if ($old == "disabled" && $mode != "disabled") singleton('Sphinx')->reindex(); // re-index now because we haven't been tracking dirty writes.
+	}
+
+	/**
+	 * When $reindex_mode is "endrequest", we build a list of deltas that require re-indexing when the request is shutdown.
+	 * @var unknown_type
+	 */
+	static $reindex_deltas = array();
+
+	/**
+	 * When $reindex_mode is "endrequest", flags if we have registered the shutdown handler. Only want it once.
+	 * @var unknown_type
+	 */
+	static $reindex_on_shutdown_flagged = false;
+
 	/**
 	 * When writing many SphinxSearchable items (such as during a migration import) the burden of keeping the Sphinx index updated in realtime is
 	 * both unneccesary and prohibitive. You can temporarily disable indexed, and enable it again after the bulk write, using these two functions
 	 */
 	
-	static $reindex_on_write = true;
-	static function disable_indexing() {
-		self::$reindex_on_write = false;
-	}
+//	static $reindex_on_write = true;
+//	static function disable_indexing() {
+//		self::$reindex_on_write = false;
+//	}
 	
-	static function reenable_indexing() {
-		self::$reindex_on_write = true;
-		// We haven't been tracking dirty writes, so the only way to ensure the results are up to date is a full reindex
-		singleton('Sphinx')->reindex();
-	}
+//	static function reenable_indexing() {
+//		self::$reindex_on_write = true;
+//		// We haven't been tracking dirty writes, so the only way to ensure the results are up to date is a full reindex
+//		singleton('Sphinx')->reindex();
+//	}
 
 	/**
 	 * Returns a list of all classes that are SphinxSearchable
@@ -361,18 +392,40 @@ class SphinxSearchable extends DataObjectDecorator {
 
 	// After delete, mark as dirty in main index (so only results from delta index will count), then update the delta index  
 	function onAfterWrite() {
-		if (!self::$reindex_on_write) return;
+		if (self::$reindex_mode == "disabled") return;
 		$this->sphinxDirty();
-		$this->reindex();
+		if (self::$reindex_mode == "write") $this->reindex();
+		else $this->reindexOnEndRequest();
 	}
 	
 	// After delete, mark as dirty in main index (so only results from delta index will count), then update the delta index
 	function onAfterDelete() {
-		if (!self::$reindex_on_write) return;
+		if (self::$reindex_mode == "disabled") return;
 		$this->sphinxDirty();
-		$this->reindex();
+		if (self::$reindex_mode == "write") $this->reindex();
+		else $this->reindexOnEndRequest();
 	}
-	
+
+	/**
+	 * Flag that reindexing is required for delta indexes for the class of this object. Re-indexing on shutdown is flagged, and
+	 * we ensure that the delta indexes for this object are in the list of what's to be reindexed.
+	 * 
+	 * @return unknown_type
+	 */
+	function reindexOnEndRequest() {
+		if (!self::$reindex_on_shutdown_flagged) register_shutdown_function(array("SphinxSearchable", "reindexOnShutdown"));
+		self::$reindex_on_shutdown_flagged = true;
+
+		$sing = singleton('Sphinx');
+		$deltas = array_filter($sing->getIndexesForClass($this->owner->class), create_function('$i', 'return $i->isDelta;'));
+		foreach ($deltas as $d) if (!in_array($d, self::$reindex_deltas)) self::$reindex_deltas[] = $d;
+	}
+
+	static function reindexOnShutdown() {
+		$sing = singleton('Sphinx');
+		$sing->reindex(self::$reindex_deltas);
+	}
+
 	/**
 	 * Helper method provided for callers that change a many-many relationship that is indexed, since the write() chain
 	 * won't detect this case. Basically flag it dirty and re-index into the delta.
