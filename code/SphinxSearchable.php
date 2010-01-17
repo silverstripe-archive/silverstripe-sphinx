@@ -143,7 +143,8 @@ class SphinxSearchable extends DataObjectDecorator {
 	function buildExcerpt($terms, $field = 'Content', $opts = array()) {
 		$con = singleton('Sphinx')->connection();
 		$res = $con->BuildExcerpts(array($this->owner->$field), $this->owner->class, $terms, $opts);
-		return array_pop($res);
+		if($res === false) user_error("Sphinx error when requesting excerpt: " . $con->GetLastError(), E_USER_WARNING);
+		else return array_pop($res);
 	}
 	
 	/*

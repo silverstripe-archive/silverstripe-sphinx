@@ -225,7 +225,7 @@ class Sphinx extends Controller {
 		
 		file_put_contents("{$this->VARPath}/sphinx.conf", implode("\n", $res));
 		
-		echo nl2br(implode("\n", $res));
+		//echo nl2br(implode("\n", $res));
 	}	
 
 	/**
@@ -282,7 +282,10 @@ class Sphinx extends Controller {
 	 */
 	function start() {
 		if ($this->status() == 'Running') return;
-		`{$this->bin('searchd')} --config {$this->VARPath}/sphinx.conf`;
+		$result = `{$this->bin('searchd')} --config {$this->VARPath}/sphinx.conf &> /dev/stdout`;
+		if ($this->status() != 'Running') {
+			user_error("Couldn't start Sphinx, searchd output follows:\n$result", E_USER_WARNING);
+		}
 	}
 	
 	/**
