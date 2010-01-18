@@ -234,7 +234,7 @@ class Sphinx extends Controller {
 	 */
 	function reindex($idxs=null) {
 		// If we're being called as a controller, or we're called with no indexes specified, rebuild all indexes 
-		if ($idxs instanceof HTTPRequest || $idxs === null) $idxs = $this->indexes();
+		if ($idxs instanceof SS_HTTPRequest || $idxs instanceof HTTPRequest || $idxs === null) $idxs = $this->indexes();
 		elseif (!is_array($idxs)) $idxs = array($idxs);
 
 		// If we were passed an array of Sphinx_Index's, get the list of just the names
@@ -248,20 +248,28 @@ class Sphinx extends Controller {
 		
 		// Generate Sphinx index
 		$idxlist = implode(' ', $idxs);
-		`{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist`;
 
-		// Generate word lists
-		$p = new PureSpell();
-		$p->load_dictionary("{$this->VARPath}/sphinx.psdic");
-		
-		foreach ($idxs as $idx) {
-			`{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idx --buildstops {$this->IDXPath}/$idx.words 100000`;
-			$p->load_wordfile("{$this->IDXPath}/$idx.words");
+		$indexingOutput = `{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
+		// We can't seem to be able to rely on exit status code, so we have to do this
+		if(!preg_match("/\nERROR:/", $indexingOutput)) {
+			// Generate word lists
+			$p = new PureSpell();
+			$p->load_dictionary("{$this->VARPath}/sphinx.psdic");
+
+			foreach ($idxs as $idx) {
+				`{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idx --buildstops {$this->IDXPath}/$idx.words 100000`;
+				$p->load_wordfile("{$this->IDXPath}/$idx.words");
+			}
+
+			$p->save_dictionary("{$this->VARPath}/sphinx.psdic");
+	
+			$this->response->addHeader("Content-type", "text/plain");
+			return "OK";
+
+		} else {
+			$this->response->addHeader("Content-type", "text/plain");
+			return "ERROR\n\n$indexingOutput";
 		}
-		
-		$p->save_dictionary("{$this->VARPath}/sphinx.psdic");
-
-		return 'OK';
 	}
 	
 	/**
