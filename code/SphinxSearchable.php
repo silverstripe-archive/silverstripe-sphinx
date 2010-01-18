@@ -241,7 +241,6 @@ class SphinxSearchable extends DataObjectDecorator {
 			if (strpos($value, "::") !== FALSE) $value = call_user_func($value);
 			$ret[$fieldName] = array($class, 'Custom', true, true, false, $value);
 		}
-
 		SphinxVariants::alterSphinxFields($class, $ret);
 		
 		return $ret;
@@ -252,6 +251,7 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * Returns an array:
 	 *   'select' => array of $alias => $value pairs (in sql, written as 'value as alias')
 	 *   'attributes' => array of $field => $type, where $type is the sphinx type name (e.g. boolean, uint)
+	 *   'where' => a SQL where clause for filtering the index
 	 * @return unknown_type
 	 */
 	function sphinxFieldConfig() {
@@ -326,7 +326,15 @@ class SphinxSearchable extends DataObjectDecorator {
 			}
 		}
 
-		return array('select' => $select, 'attributes' => $attributes);
+		// Extra index_filter and pass as the where clause of the filter
+		$conf = $this->owner->stat('sphinx');
+		$indexFilter = empty($conf['index_filter']) ? null : $conf['index_filter'];
+
+		return array(
+			'select' => $select, 
+			'attributes' => $attributes, 
+			'where' => $indexFilter
+		);
 	}
 
 	/**

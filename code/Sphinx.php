@@ -409,6 +409,7 @@ abstract class Sphinx_Source extends ViewableData {
 		$this->qry = $this->Searchable->buildSQL(null, null, null, null, true);
 		$this->qry->select($select);
 		$this->qry->where = array("{$bt}$baseTable{$bt}.{$bt}ClassName{$bt} in ('" . implode("','", $this->SearchClasses) . "')");
+		if($res['where']) $this->qry->where[] = $res['where'];
 		$this->qry->orderby = null;
 		
 		$this->Searchable->extend('augmentSQL', $this->qry);

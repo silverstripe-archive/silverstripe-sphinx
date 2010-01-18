@@ -183,7 +183,7 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 			$base = $inst->baseTable();
 
 			$join = $flagTable == $base ? "" : "LEFT JOIN `$base` on $flagTable.ID=$base.ID";
-			$index->Sources[0]->prequery = "UPDATE $flagTable $join SET $flagTable.SphinxPrimaryIndexed = true WHERE " . $index->Sources[0]->qry->getFilter();
+			$index->Sources[0]->prequery = "UPDATE $flagTable $join SET $flagTable.SphinxPrimaryIndexed = true WHERE (" . $index->Sources[0]->qry->getFilter() . ")";
 
 			// Set delta index's source to only collect items not yet in main index
 			$deltaIndex->Sources[0]->qry->where($flagTable . '.SphinxPrimaryIndexed = false');

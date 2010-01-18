@@ -14,6 +14,7 @@
 	static $sphinx = array(
 		"search_fields" => array("a", "b", "c"),
 		"filter_fields" => array("a", "c"),
+		"index_filter" => '"ShowInSearch" = 1',
 		"sort_fields" => array("Title"),
 		"extra_fields" => array("_contenttype" => "Page::getComputedValue"),
 		'filterable_many_many' => '*',
@@ -30,6 +31,7 @@
 * filter_fields - an array of fields in this class that can be filtered. If $excludeByDefault is false and filterFields is not supplied, all
   non-string fields will be made filterable (including from has_one relationships). If $excludeByDefault is true, this must be supplied to
   have fields made filterable.
+* index_filter - A SQL where clause to filter the index by; it will be impossible to search for anything that does not meet this criteria.
 * sort_fields - an array of fields that can be sorted on. Similar to filterFields in that all fields listed here are added as filters, but this
   can include string fields. You can only sort on fields that:
   * special attributes created by sphinx
