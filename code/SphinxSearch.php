@@ -118,7 +118,7 @@ class SphinxSearch extends Object {
 		
 		/* Allow variants to alter search */
 		SphinxVariants::alterSearch($indexes, $args);
-
+		
 		/* Make a map to convert CRC32 encoded class IDs back to class names */
 		$classmap = array();
 		foreach ($classes as $class) $classmap[self::unsignedcrc($class)] = $class;
@@ -189,7 +189,7 @@ class SphinxSearch extends Object {
 		if (count($indexes) > 99) singleton('Sphinx')->trimIndexes($indexes);
 		if (count($indexes) > 75) $indexes = array_slice($indexes, 0, 75);
 		//echo "Query: $qry, Indexes (".count($indexes).") ".join(',',$indexes)."<br />\n";
-		
+
 		/* Set filters */
 		foreach (array('require' => false, 'exclude' => true) as $key => $exclude) {
 			foreach($args[$key] as $attr => $values) {
@@ -220,8 +220,11 @@ class SphinxSearch extends Object {
 		if (isset($res['matches'])) foreach ($res['matches'] as $bigid => $info) {
 			$id = $info['attrs']['_id'];
 			$class = $classmap[$info['attrs']['_classid']];
+			
+			$result = DataObject::get_by_id($class, $id);
+			$result->setSphinxSearchHints($indexes);
+			$results[] = $result;
 
-			$results[] = DataObject::get_by_id($class, $id);
 		}
 
 		if ($packedSort) self::packedSortRefineResult($results, $res, $classes, $qry, $sortFields, $classmap, $indexes);

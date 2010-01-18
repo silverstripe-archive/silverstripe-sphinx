@@ -81,10 +81,22 @@ class SphinxSearchable extends DataObjectDecorator {
 	}
 
 	protected $excludeByDefault;
+	
+	protected $searchedIndexes;
 
 	function __construct($excludeByDefault = false) {
 		parent::__construct();
 		$this->excludeByDefault = $excludeByDefault;
+	}
+	
+	/**
+	 * Provide information about the Sphinx search that was used to query this object.
+	 * 
+	 * @param $searchedIndexes An array of the indexes that were searched in generating this search
+	 * result.
+	 */
+	function setSphinxSearchHints($searchedIndexes) {
+		$this->searchedIndexes = $searchedIndexes;
 	}
 
 	/**
@@ -141,10 +153,29 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * advantage of that. Maybe we can fix that somehow?
 	 */
 	function buildExcerpt($terms, $field = 'Content', $opts = array()) {
-		$con = singleton('Sphinx')->connection();
-		$res = $con->BuildExcerpts(array($this->owner->$field), $this->owner->class, $terms, $opts);
-		if($res === false) user_error("Sphinx error when requesting excerpt: " . $con->GetLastError(), E_USER_WARNING);
-		else return array_pop($res);
+		$sphinx = singleton('Sphinx');
+		
+		// Find the index to use for this excerpt
+		$index = null;
+		foreach(ClassInfo::ancestry($this->owner) as $candidate) {
+			if(isset($this->searchedIndexes[$candidate])) {
+				$index = $this->searchedIndexes[$candidate];
+				break;
+			}
+		}
+
+		if($index) {
+			$fullContent = $this->owner->$field;
+			
+			$con = $sphinx->connection();
+			$res = $con->BuildExcerpts(array($fullContent), $index, $terms, $opts);
+			if($res === false) {
+				user_error("Sphinx error when requesting excerpt: " . $con->GetLastError(), E_USER_NOTICE);
+				return null;
+			} else {
+				return array_pop($res);
+			}
+		}
 	}
 	
 	/*
@@ -178,7 +209,7 @@ class SphinxSearchable extends DataObjectDecorator {
 			if (isset($childconf["sort_fields"]))$conf["sort_fields"] = array_merge($conf["sort_fields"], $childconf["sort_fields"]);
 			if (isset($childconf["extra_fields"]))$conf["extra_fields"] = array_merge($conf["extra_fields"], $childconf["extra_fields"]);
 		}
-
+		
 		$ret = $this->sphinxFields($sing->parentClass(), $conf);
 
 		// Grab fields. If the class descends DataObject, we want ClassName et al, otherwise just fields added by this class.
