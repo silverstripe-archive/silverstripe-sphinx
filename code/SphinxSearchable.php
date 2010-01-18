@@ -242,6 +242,8 @@ class SphinxSearchable extends DataObjectDecorator {
 			$ret[$fieldName] = array($class, 'Custom', true, true, false, $value);
 		}
 
+		SphinxVariants::alterSphinxFields($class, $ret);
+		
 		return $ret;
 	}
 

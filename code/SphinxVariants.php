@@ -61,11 +61,22 @@ class SphinxVariants extends Object {
 	static function alterSearch(&$indexes, &$search) {
 		foreach (self::variant_handlers() as $variantclass) singleton($variantclass)->alterSearch($indexes, $search);
 	}
+
+	/**
+	 * Alter the search fields that SphinxSearch index, based on some variant-specific logic
+	 * @param $class string - The class being indexes
+	 * @param $searchFields - An array of search fields as defined by SphinxSearchable::sphinxFields()
+	 * @return none
+	 */
+	static function alterSphinxFields($class, &$searchFields) {
+		foreach (self::variant_handlers() as $variantclass) singleton($variantclass)->alterSphinxFields($class, $searchFields);
+	}
 }
 
 interface SphinxVariant {
 	function alterIndexes($class, &$indexes);
 	function alterSearch(&$indexes, &$search);
+	function alterSphinxFields($class, &$searchFields);
 }
 
 class SphinxVariant_Versioned extends Object implements SphinxVariant {
@@ -97,13 +108,16 @@ class SphinxVariant_Versioned extends Object implements SphinxVariant {
 			unset($index);
 		}
 	}
+	
+	function alterSphinxFields($class, &$searchFields) {
+	}
 }
 
 class SphinxVariant_Subsite extends Object implements SphinxVariant {
 	static $name = 'Sub';
 	
 	function alterIndexes($class, &$indexes) {
-		foreach ($indexes as $index) {
+		foreach ($indexes as $class => $index) {
 			$index->Sources[0]->qry->where = array_filter(
 				$index->Sources[0]->qry->where, 
 				create_function('$str', 'return strpos($str, "SubsiteID") === false;')
@@ -136,6 +150,17 @@ class SphinxVariant_Subsite extends Object implements SphinxVariant {
 			$search['exclude']["{$base}SubsiteDoesntMatch"] = 1;
 		}
 	}
+
+	function alterSphinxFields($class, &$searchFields) {
+		$base = ClassInfo::baseDataClass($class);
+		if (Object::has_extension($base, 'SiteTreeSubsites') 
+				|| Object::has_extension($base, 'GroupSubsites')
+				|| Object::has_extension($base, 'FileSubsites')) {
+			if(!isset($searchFields['SubsiteID'])) {
+				$searchFields['SubsiteID'] = array($base, "ForeignKey",true,null,null,null);
+			}
+		}
+	}
 }
 
 class SphinxVariant_Delta extends Object implements SphinxVariant {
@@ -158,7 +183,7 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 			$base = $inst->baseTable();
 
 			$join = $flagTable == $base ? "" : "LEFT JOIN `$base` on $flagTable.ID=$base.ID";
-			$index->Sources[0]->prequery = "UPDATE $flagTable $join SET SphinxPrimaryIndexed = true WHERE " . $index->Sources[0]->qry->getFilter();
+			$index->Sources[0]->prequery = "UPDATE $flagTable $join SET $flagTable.SphinxPrimaryIndexed = true WHERE " . $index->Sources[0]->qry->getFilter();
 
 			// Set delta index's source to only collect items not yet in main index
 			$deltaIndex->Sources[0]->qry->where($flagTable . '.SphinxPrimaryIndexed = false');
@@ -173,6 +198,9 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 		foreach ($indexes as $index) $more[] = $index . 'Delta';
 		foreach ($more as $index) $indexes[] = $index;
 		$search['exclude']["_dirty"] = 1;
+	}
+
+	function alterSphinxFields($class, &$searchFields) {
 	}
 }
 
