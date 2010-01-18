@@ -263,11 +263,11 @@ class Sphinx extends Controller {
 
 			$p->save_dictionary("{$this->VARPath}/sphinx.psdic");
 	
-			$this->response->addHeader("Content-type", "text/plain");
+			if($this->response) $this->response->addHeader("Content-type", "text/plain");
 			return "OK";
 
 		} else {
-			$this->response->addHeader("Content-type", "text/plain");
+			if($this->response) $this->response->addHeader("Content-type", "text/plain");
 			return "ERROR\n\n$indexingOutput";
 		}
 	}
