@@ -438,8 +438,8 @@ class Sphinx_Source_SQL extends Sphinx_Source {
 		$conf[] = "source {$this->Name}Src : BaseSrc {";
 
 		if (defined('DB::USE_ANSI_SQL')) $conf[] = "sql_query_pre = SET sql_mode = 'ansi'";
-		if ($this->prequery) $conf[] = "sql_query_pre = {$this->prequery}";
-		$conf[] = "sql_query = {$this->qry}";
+		if ($this->prequery) $conf[] = "sql_query_pre = " . preg_replace("/\s+/", " ", $this->prequery);
+		$conf[] = "sql_query = " . preg_replace("/\s+/"," ",$this->qry);
 		foreach ($this->attributes as $name => $type) $conf[] = "sql_attr_$type = $name";
 		foreach ($this->manyManys as $name => $query) $conf[] = "sql_attr_multi = uint $name from query; " . $query;
 
