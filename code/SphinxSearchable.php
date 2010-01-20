@@ -415,19 +415,16 @@ class SphinxSearchable extends DataObjectDecorator {
 	// versioned manipulates the write, so tables may be live or stage.
 	// @TODO: Generalise augmentWrite to call augment method on the enabled variants, move all this logic into the delta variant.
 	public function augmentWrite(&$manipulation) {
+		$live = false;
+		
 		foreach (ClassInfo::ancestry($this->owner->class, true) as $class) {
+			if (isset($manipulation[$class.'_'.Versioned::get_live_stage()])) $live = true;
 			$fields = DataObject::database_fields($class);
 			if (isset($fields['SphinxPrimaryIndexed'])) break;
 		}
 
-		// If the class is versioned and the particular manipulations are being done to live, use that as the class name.
-		/*
-		 * @TODO: this is a nasty hack. What should happen is this whole function should be in an augmentWrite on the delta
-		 * variant, where it belongs.
-		 */
-		if (singleton($class)->hasExtension('Versioned') && Versioned::current_stage() == Versioned::get_live_stage()) {
-			$class .= "_" . Versioned::get_live_stage(); // not base table, which would give us potentially too low a table
-		}
+		// If we are versioned, choose the correct table (draft or live)
+		if (singleton($class)->hasExtension('Versioned')) $class = $class . ($live ? '_'.Versioned::get_live_stage() : '');
 		
 		$manipulation[$class]['fields']['SphinxPrimaryIndexed'] = 0;
 	}
