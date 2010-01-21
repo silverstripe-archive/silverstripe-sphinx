@@ -66,6 +66,48 @@
   defines $searchFields, $filterFields.
   e.g. `static $extensions = array('SphinxSearchable(true)'); // disable automatic inclusion of all subclass fields`
 
+# Indexing Content of Files
+
+Sphinx module can be configured index file contents. This optional feature relies on extractor classes that use external tools to 
+get the text for a file. This module currently provides two file extractor classes:
+
+* PDFTextExtractor - uses pdftotext utility
+* HTML extractor - uses internal striptags method to crudely get content
+
+Other extractors can be added by defining subclasses of FileTextExtractor.
+
+## Configuration
+
+Add the extension in your mysite/_config.php:
+
+`
+	DataObject::add_extension('File', 'FileTextExtractable');
+`
+
+## Indexing File via another Class (e.g. a Document class)
+
+On your document class (which is assumed to contain a has_one relationship to File), configure sphinx to index it. The key properties
+are setting the mode to "xmlpipe" and external_content to point to a function in the class that retrieves the content. In this case,
+the function simply calls extractFileAsText() (in the decorator) on the related file object.
+`
+	static $sphinx = array(
+		"search_fields" => array("Title","Description"),
+		"mode" => "xmlpipe",
+		"external_content" => array("file_content" => array("Document", "getDocumentContent"))
+		);
+
+	static function getDocumentContent($documentId) {
+		$doc = DataObject::get_by_id("Document", $documentId);
+		if (!$doc || !$doc->File()) return "";
+		return $doc->File()->extractFileAsText();
+	}
+
+`
+
+Generally File should not be directly indexed, as this provides no control over which files are indexed.
+
+## Indexing
+
 # Managing Larger Configurations
 
 Sphinx performance and resource usage is affected by a number of factors, including:
