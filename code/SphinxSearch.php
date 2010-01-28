@@ -222,9 +222,10 @@ class SphinxSearch extends Object {
 			$class = $classmap[$info['attrs']['_classid']];
 			
 			$result = DataObject::get_by_id($class, $id);
-			$result->setSphinxSearchHints($indexes);
-			$results[] = $result;
-
+			if ($result) {
+				$result->setSphinxSearchHints($indexes);
+				$results[] = $result;
+			}
 		}
 
 		if ($packedSort) self::packedSortRefineResult($results, $res, $classes, $qry, $sortFields, $classmap, $indexes);
