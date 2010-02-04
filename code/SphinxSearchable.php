@@ -13,9 +13,16 @@ class SphinxSearchable extends DataObjectDecorator {
 
 	/**
 	 * Determines when indexes are updated. Possible values are:
-	 *   - "endrequest"	- (default) Reindexing is done only once at the end of the PHP request, and only if a write() or
-	 *     delete() have been done (any op which flags the record dirty). This eliminates unnecessary reindexing when decorators
-	 *     perform additional writes on a data object.
+	 *   - "endrequest"	- (default) Reindexing is done only once at the end of
+	 *					the PHP request, and only if a write() or delete()
+	 *					have been done (any op which flags the record dirty).
+	 *					This eliminates unnecessary reindexing when decorators
+	 *					perform additional writes on a data object.
+	 *					If the messagequeue module is installed and
+	 *					$reindex_queue is specified, a message is sent to
+	 *					do the refresh to keep it out of the user process.
+	 *					Otherwise it done in this process but at the end of
+	 *					the PHP request (this will be noticable to the user)
 	 *   - "write"		-	(old behaviour) Reindexing is done on write or delete.
 	 *   - "disabled"	-	Reindexing is disabled, which is useful when writing many SphinxSearchable items (such as during a migration import)
 	 *						where the burden of keeping the Sphinx index updated in realtime is both unneccesary and prohibitive.
@@ -23,11 +30,26 @@ class SphinxSearchable extends DataObjectDecorator {
 	 */
 	static $reindex_mode = "endrequest";
 
+	/**
+	 * If $reindex_queue is "endrequest", and messagequeue module is installed,
+	 * and this string is set, then the reindexing is performed by sending
+	 * the reindex request as a message to this queue. This does not guarantee
+	 * immediate execution, but it does ensure that the reindexing does not
+	 * impact the users interaction. If the queue is configured to consume
+	 * on shutdown, it will be done on php shutdown but in a separate process.
+	 * @var String
+	 */
+	static $reindex_queue = "sphinx_indexing";
+
 	static function set_indexing_mode($mode) {
 		$old = self::$reindex_mode;
 
 		self::$reindex_mode = $mode;
 		if ($old == "disabled" && $mode != "disabled") singleton('Sphinx')->reindex(); // re-index now because we haven't been tracking dirty writes.
+	}
+
+	static function set_reindexing_queue($queue) {
+		self::$reindex_queue = $queue;
 	}
 
 	/**
@@ -452,17 +474,42 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * @return unknown_type
 	 */
 	function reindexOnEndRequest() {
+		// Work out the deltas that need to be reindexed. If multiple writes
+		// have been done to objects in the same delta, we'll get the same
+		// delta more than once. This logic ensures we only reindex each delta
+		// once.
+		$sing = singleton('Sphinx');
+		$deltas = array_filter($sing->getIndexesForClass($this->owner->class), create_function('$i', 'return $i->isDelta;')); // just deltas
+		$deltas = array_map(create_function('$idx', 'return $idx->Name;'), $deltas); // and just names please
+		foreach ($deltas as $d) if (!in_array($d, self::$reindex_deltas)) self::$reindex_deltas[] = $d;
+
+		// Make sure we only do the shutdown call once
 		if (!self::$reindex_on_shutdown_flagged) register_shutdown_function(array("SphinxSearchable", "reindexOnShutdown"));
 		self::$reindex_on_shutdown_flagged = true;
-
-		$sing = singleton('Sphinx');
-		$deltas = array_filter($sing->getIndexesForClass($this->owner->class), create_function('$i', 'return $i->isDelta;'));
-		foreach ($deltas as $d) if (!in_array($d, self::$reindex_deltas)) self::$reindex_deltas[] = $d;
 	}
 
+	/**
+	 * Do the reindexing, either via the message queue, or directly if we're not
+	 * using it.
+	 */
 	static function reindexOnShutdown() {
+		if (class_exists("MessageQueue") && self::$reindex_queue) {
+			MessageQueue::send(self::$reindex_queue, new MethodInvocationMessage("SphinxSearchable", "reindexDeltaStatic", self::$reindex_deltas));
+		}
+		else self::reindexDeltas(self::$reindex_deltas);
+	}
+
+	/**
+	 * Reindex the specified $deltas.
+	 * Note: this is used by reindexOnShutdown and is also called from the
+	 * message queue when that is being used. So don't merge reindexOnShutdown
+	 * and this function. Also note this function can be executed completely
+	 * out of the normal execution path if executed by messaging that is
+	 * using a cron job, for example.
+	 */
+	static function reindexDeltas($deltas) {
 		$sing = singleton('Sphinx');
-		$sing->reindex(self::$reindex_deltas);
+		$sing->reindex($deltas);
 	}
 
 	/**

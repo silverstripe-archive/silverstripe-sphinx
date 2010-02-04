@@ -226,11 +226,13 @@ class Sphinx extends Controller {
 		file_put_contents("{$this->VARPath}/sphinx.conf", implode("\n", $res));
 		
 		//echo nl2br(implode("\n", $res));
-	}	
+	}
 
 	/**
 	 * Re-build sphinx's indexes
-	 * @param $idxs array - A list of indexes to rebuild as strings, or null to rebuild all indexes
+	 * @param $idxs array - A list of indexes to rebuild,
+	 *		or null to rebuild all indexes. Array items can be either index
+	 *		names as strings, or Sphinx_Index objects.
 	 */
 	function reindex($idxs=null) {
 		// If we're being called as a controller, or we're called with no indexes specified, rebuild all indexes 
