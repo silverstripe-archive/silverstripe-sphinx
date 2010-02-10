@@ -3,6 +3,8 @@
 class SphinxIndexingTest extends SapphireTest {
 	static $fixture_file = 'sphinx/tests/SphinxTest.yml';
 
+	protected $extraDataObjects = array('SphinxTestBase', 'SphinxTestXMLPiped', 'SphinxTestDescendantA', 'SphinxTestDescendantB');
+
 	static $sphinx;
 
 	/**
@@ -13,7 +15,10 @@ class SphinxIndexingTest extends SapphireTest {
 	function onceOnly() {
 		if (self::$sphinx) return;
 
+		Sphinx::set_test_mode(true);
+
 		self::$sphinx = new Sphinx();
+		self::$sphinx->setClientClass("SphinxClientFaker", $this);
 		self::$sphinx->configure();
 		self::$sphinx->reindex(); // required to teest xmlpipe xml-generation
 	}
@@ -89,7 +94,7 @@ class SphinxIndexingTest extends SapphireTest {
 
 			// Checks for goodness.
 			if ($key == "sql_query_pre" && preg_match('/SET sql_mode = \'ansi\'/', $value)) $ansi_mode_set = true;
-			if ($key == "sql_query_pre" && preg_match('/^UPDATE .* SET SphinxPrimaryIndexed = true/', $value)) $update_spi = true;
+			if ($key == "sql_query_pre" && preg_match('/^UPDATE .* SET ([`"\w]+\.)?SphinxPrimaryIndexed = true/', $value)) $update_spi = true;
 			if ($key == "sql_attr_uint" && $value == "FilterProp") $filter_prop_ok = true;
 			if ($key == "sql_attr_uint" && $value == "IntProp") $int_prop_ok = true;
 			if ($key == "sql_attr_uint" && $value == "_testextra") $test_extra_ok = true;

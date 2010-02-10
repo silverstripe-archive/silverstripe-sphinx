@@ -3,6 +3,8 @@
 class SphinxSearchTest extends SapphireTest {
 	static $fixture_file = 'sphinx/tests/SphinxTest.yml';
 	
+	protected $extraDataObjects = array('SphinxTestBase', 'SphinxTestXMLPiped');
+	
 	static $sphinx = null;
 
 	/**
@@ -23,7 +25,9 @@ class SphinxSearchTest extends SapphireTest {
 	function onceOnly() {
 		if (self::$sphinx) return;
 
+		Sphinx::set_test_mode(true);
 		self::$sphinx = new Sphinx();
+		self::$sphinx->setClientClass("SphinxClientFaker", $this);
 		self::$sphinx->configure();
 	}
 
@@ -32,8 +36,6 @@ class SphinxSearchTest extends SapphireTest {
 	 */
 	function testSearchBasic() {
 		$this->onceOnly();
-
-		self::$sphinx->setClientClass("SphinxClientFaker", $this);
 
 		$res = SphinxSearch::search(array('SphinxTestBase'),
 								"basic", array( 'require' => array(), 'page' => 0, 'pagesize' => 3));
@@ -44,8 +46,6 @@ class SphinxSearchTest extends SapphireTest {
 	function testSearchTextSortCase1() {
 		$this->onceOnly();
 
-		self::$sphinx->setClientClass("SphinxClientFaker", $this);
-
 		$res = SphinxSearch::search(array('SphinxTestBase'),
 								"sort1", array( 'require' => array(), 'page' => 0, 'pagesize' => 5, 'sortmode' => "fields", 'sortarg' => array("StringProp" => "asc")));
 		$this->assertTrue($res->Matches->Count() == 5, "Sort case 1 has 5 results");
@@ -55,8 +55,6 @@ class SphinxSearchTest extends SapphireTest {
 	function testSearchTextSortCase2() {
 		$this->onceOnly();
 
-		self::$sphinx->setClientClass("SphinxClientFaker", $this);
-
 		$res = SphinxSearch::search(array('SphinxTestBase'),
 								"sort2", array( 'require' => array(), 'page' => 0, 'pagesize' => 5, 'sortmode' => "fields", 'sortarg' => array("StringProp" => "asc")));
 		$this->assertTrue($res->Matches->Count() == 5, "Sort case 2 has 5 results");
@@ -65,8 +63,6 @@ class SphinxSearchTest extends SapphireTest {
 	
 	function testSearchTextSortCase3() {
 		$this->onceOnly();
-
-		self::$sphinx->setClientClass("SphinxClientFaker", $this);
 
 		$res = SphinxSearch::search(array('SphinxTestBase'),
 								"sort3", array( 'require' => array(), 'page' => 0, 'pagesize' => 5, 'sortmode' => "fields", 'sortarg' => array("StringProp" => "asc")));

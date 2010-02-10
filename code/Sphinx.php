@@ -8,6 +8,12 @@
  * @author Hamish Friedlander <hamish@silverstripe.com>
  */
 class Sphinx extends Controller {
+
+	/**
+	 * Enable test mode
+	 * @var bool
+	 */
+	static $test_mode = false;
 	
 	/** Only allow access to certain actions. Also need to pass the permission check in Sphinx#init */
 	static $allowed_actions = array(
@@ -130,6 +136,13 @@ class Sphinx extends Controller {
 		// pass because it needs the complete list of classes in the index, which we don't initially have,
 		// which is what we're building here.
 		foreach ($classes as $class) {
+			// Skip classes for which no database tables are linked.
+			// This can occur in test scenarios, especially with TestOnly
+			// classes.
+			if (!ClassInfo::dataClassesFor($class)) {
+				continue;
+			}
+
 			$sig = $this->getSearchSignature($class);
 
 			$conf = singleton($class)->stat('sphinx');
@@ -291,6 +304,9 @@ class Sphinx extends Controller {
 	 * Start searchd. NOP if already running.
 	 */
 	function start() {
+		if (self::$test_mode) {
+			return;
+		}
 		if ($this->status() == 'Running') return;
 		$result = `{$this->bin('searchd')} --config {$this->VARPath}/sphinx.conf &> /dev/stdout`;
 		if ($this->status() != 'Running') {
@@ -302,6 +318,9 @@ class Sphinx extends Controller {
 	 * Stop searchd. NOP if already stopped.
 	 */
 	function stop() {
+		if (self::$test_mode) {
+			return;
+		}
 		if ($this->status() != 'Running') return;
 		`{$this->bin('searchd')} --config {$this->VARPath}/sphinx.conf --stop`;
 		
@@ -311,6 +330,12 @@ class Sphinx extends Controller {
 		if ($this->status() == 'Running') user_error('Could not stop sphinx searchd');
 	}
 	
+	/**
+	 * Whether to allow sphinxd to be started/stopped on connection.
+	 */
+	static function set_test_mode($enable=true) {
+		self::$test_mode = $enable;
+	}
 	
 	function setClientClass($class, $param = null) {
 		self::$client_class = $class;
