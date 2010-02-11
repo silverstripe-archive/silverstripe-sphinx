@@ -237,8 +237,6 @@ class Sphinx extends Controller {
 		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
 		
 		file_put_contents("{$this->VARPath}/sphinx.conf", implode("\n", $res));
-		
-		//echo nl2br(implode("\n", $res));
 	}
 
 	/**
@@ -263,6 +261,8 @@ class Sphinx extends Controller {
 		
 		// Generate Sphinx index
 		$idxlist = implode(' ', $idxs);
+
+//		echo "running command {$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout";
 
 		$indexingOutput = `{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
 		// We can't seem to be able to rely on exit status code, so we have to do this

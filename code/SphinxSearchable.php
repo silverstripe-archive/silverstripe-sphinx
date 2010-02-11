@@ -467,6 +467,8 @@ class SphinxSearchable extends DataObjectDecorator {
 		else $this->reindexOnEndRequest();
 	}
 
+	protected static $queued_reindexes = array();
+
 	/**
 	 * Flag that reindexing is required for delta indexes for the class of this object. Re-indexing on shutdown is flagged, and
 	 * we ensure that the delta indexes for this object are in the list of what's to be reindexed.
@@ -483,9 +485,22 @@ class SphinxSearchable extends DataObjectDecorator {
 		$deltas = array_map(create_function('$idx', 'return $idx->Name;'), $deltas); // and just names please
 		foreach ($deltas as $d) if (!in_array($d, self::$reindex_deltas)) self::$reindex_deltas[] = $d;
 
-		// Make sure we only do the shutdown call once
-		if (!self::$reindex_on_shutdown_flagged) register_shutdown_function(array("SphinxSearchable", "reindexOnShutdown"));
-		self::$reindex_on_shutdown_flagged = true;
+		if (class_exists("MessageQueue") && self::$reindex_queue) {
+			// Hack alert. We can't send from the PHP shutdown function, but
+			// we want to make sure we don't send the same request again.
+			// So we record the unique re-index parameters we've sent so
+			// far, and only re-issue them if they haven't been sent already.
+			$hash = implode(",", self::$reindex_deltas);
+			if (!in_array($hash, self::$queued_reindexes)) {
+				self::$queued_reindexes[] = $hash;
+				MessageQueue::send(self::$reindex_queue, new MethodInvocationMessage("SphinxSearchable", "reindexDeltas", self::$reindex_deltas));
+			}
+		}
+		else {
+			// Make sure we only do the shutdown call once
+			if (!self::$reindex_on_shutdown_flagged) register_shutdown_function(array("SphinxSearchable", "reindexOnShutdown"));
+			self::$reindex_on_shutdown_flagged = true;
+		}
 	}
 
 	/**
@@ -493,10 +508,7 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * using it.
 	 */
 	static function reindexOnShutdown() {
-		if (class_exists("MessageQueue") && self::$reindex_queue) {
-			MessageQueue::send(self::$reindex_queue, new MethodInvocationMessage("SphinxSearchable", "reindexDeltaStatic", self::$reindex_deltas));
-		}
-		else self::reindexDeltas(self::$reindex_deltas);
+		self::reindexDeltas(self::$reindex_deltas);
 	}
 
 	/**
