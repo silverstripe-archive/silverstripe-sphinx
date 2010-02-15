@@ -435,7 +435,8 @@ class SphinxSearchable extends DataObjectDecorator {
 
 	// Make sure that SphinxPrimaryIndexed gets set to false, so this record is picked up on delta reindex. This gets called after
 	// versioned manipulates the write, so tables may be live or stage.
-	// @TODO: Generalise augmentWrite to call augment method on the enabled variants, move all this logic into the delta variant.
+	// @TODO: Generalise augmentWrite to call augment method on the enabled
+	//        variants, move all this logic into the delta variant.
 	public function augmentWrite(&$manipulation) {
 		$live = false;
 		
@@ -451,15 +452,25 @@ class SphinxSearchable extends DataObjectDecorator {
 		$manipulation[$class]['fields']['SphinxPrimaryIndexed'] = 0;
 	}
 
-	// After delete, mark as dirty in main index (so only results from delta index will count), then update the delta index  
-	function onAfterWrite() {
+	// Re-index the data object. This can be a result of a DataObject->write, but
+	// it can be called in other circumstances. In particular, manually managed
+	// many-to-many relationships require that both related DataObjects are
+	// re-indexed when the relationship changes, so this must be called on both.
+	function forceReindex() {
 		if (self::$reindex_mode == "disabled") return;
 		$this->sphinxDirty();
 		if (self::$reindex_mode == "write") $this->reindex();
 		else $this->reindexOnEndRequest();
 	}
-	
-	// After delete, mark as dirty in main index (so only results from delta index will count), then update the delta index
+
+	// After delete, mark as dirty in main index (so only results from delta
+	// index will count), then update the delta index
+	function onAfterWrite() {
+		$this->forceReindex();
+	}
+
+	// After delete, mark as dirty in main index (so only results from delta
+	// index will count), then update the delta index
 	function onAfterDelete() {
 		if (self::$reindex_mode == "disabled") return;
 		$this->sphinxDirty();
@@ -470,8 +481,9 @@ class SphinxSearchable extends DataObjectDecorator {
 	protected static $queued_reindexes = array();
 
 	/**
-	 * Flag that reindexing is required for delta indexes for the class of this object. Re-indexing on shutdown is flagged, and
-	 * we ensure that the delta indexes for this object are in the list of what's to be reindexed.
+	 * Flag that reindexing is required for delta indexes for the class of this
+	 * object. Re-indexing on shutdown is flagged, and we ensure that the delta
+	 * indexes for this object are in the list of what's to be reindexed.
 	 * 
 	 * @return unknown_type
 	 */
