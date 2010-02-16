@@ -527,8 +527,8 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 
 			// Single fields and regular attributes
 			foreach ($this->select as $alias => $value) {
-				$out = $row[$alias];
-				$out = preg_replace("/[^\x9\xA\xD\x20-\x7F]/", "", $out);
+				$out = $this->cleanForXML($row[$alias]);
+
 				// If its not an attribute it must be a search field, so quote it.
 				if (!isset($this->attributes[$alias]) && $out) $out = "\n<![CDATA[\n$out\n]]>\n";
 				if ($alias != "index") $result[] = '    <' . strtolower($alias) . '>' . $out . '</' . strtolower($alias) . '>';
@@ -536,8 +536,7 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 
 			// External sources
 			if ($externalFields) foreach ($externalFields as $alias => $function) {
-				$out = call_user_func($function, $row["_id"]);
-				$out = preg_replace("/[^\x9\xA\xD\x20-\x7F]/", "", $out);
+				$out = $this->cleanForXML(call_user_func($function, $row["_id"]));
 				if ($out) $out = "\n<![CDATA[\n$out\n]]>\n";
 				$result[] = '    <' . strtolower($alias) . '>' . $out . '    </' . strtolower($alias) . '>';
 			}
@@ -556,6 +555,21 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 		$result[] = '</sphinx:docset>';
 
 		return implode("\n", $result);
+	}
+
+	/**
+	 * Clean up the given text so it can be put in the XML output stream. This
+	 * involves getting rid of HTML elements that can be put there by
+	 * rich text editor. Also ensures that there are no ]]> in the result,
+	 * which will trip up the parsing of the XML stream.
+	 * @param String $val
+	 * @return String
+	 */
+	function cleanForXML($val) {
+		$val = preg_replace("/[^\x9\xA\xD\x20-\x7F]/", "", $val);	// ascii chars
+		$val = preg_replace("/\]\]\>/", "", $val);					// no ]]>
+		$val = strip_tags($val);									// no html elements
+		return $val;
 	}
 }
 
