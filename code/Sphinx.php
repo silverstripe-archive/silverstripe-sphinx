@@ -163,8 +163,6 @@ class Sphinx extends Controller {
 				$index_desc[$sig] = array("classes" => array($class), "baseClass" => $class, "mode" => $mode);
 		}
 
-//echo "indexes to build:"; print_r($index_desc);
-
 		$result = array();
 		foreach ($index_desc as $sig => $desc) {
 			$baseClass = $desc['baseClass'];
@@ -498,7 +496,7 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 	
 		$result[] = '  <sphinx:schema>';
 		foreach ($this->select as $alias => $value) {
-			if (!isset($this->attributes[$alias])) $result[] = '    <sphinx:field name="' . strtolower($alias) . '"/>';
+			if (!isset($this->attributes[$alias]) && $alias != "id") $result[] = '    <sphinx:field name="' . strtolower($alias) . '"/>';
 		}
 		if ($externalFields) foreach ($externalFields as $alias => $function) $result[] = '    <sphinx:field name="' . strtolower($alias) . '"/>';
 
@@ -527,6 +525,7 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 
 			// Single fields and regular attributes
 			foreach ($this->select as $alias => $value) {
+				if ($alias == "id") continue;
 				$out = $this->cleanForXML($row[$alias]);
 
 				// If its not an attribute it must be a search field, so quote it.
