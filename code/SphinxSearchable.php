@@ -433,6 +433,31 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * Functions to connect regular silverstripe operations with sphinx operations, to maintain syncronisation
 	 */
 
+	/**
+	 * Return the base class that has the SphinxPrimaryIndexed field. This
+	 * assumes a single reading stage, so shouldn't be used in augmentWrite
+	 * even though the code is very similar
+	 * @return String
+	 */
+	private function getSPITable() {
+		$fields = null;
+		foreach (ClassInfo::ancestry($this->owner->class, true) as $class) {
+			$fields = DataObject::database_fields($class);
+			if (isset($fields['SphinxPrimaryIndexed'])) break;
+		}
+
+		if ( !isset($fields['SphinxPrimaryIndexed']) ) {
+			// this should not happen, as the SphinxPrimaryIndexed is included in this decorator
+			user_error("Fatal: Could not establish host ancestor for class {$this->owner->class}", E_USER_ERROR);
+		}
+
+		$live = Versioned::current_stage() == 'Live';
+		// If we are versioned, choose the correct table (draft or live)
+		if (singleton($class)->hasExtension('Versioned')) $class = $class . ($live ? '_'.Versioned::get_live_stage() : '');
+
+		return $class;
+	}
+
 	// Make sure that SphinxPrimaryIndexed gets set to false, so this record is picked up on delta reindex. This gets called after
 	// versioned manipulates the write, so tables may be live or stage.
 	// @TODO: Generalise augmentWrite to call augment method on the enabled
@@ -459,6 +484,13 @@ class SphinxSearchable extends DataObjectDecorator {
 	function forceReindex() {
 		if (self::$reindex_mode == "disabled") return;
 		$this->sphinxDirty();
+
+		// We have to do this explicitly. For an indexed DO, this will happen in
+		// augment write, but if a relationship changes this doesn't otherwise
+		// get done.
+		$class = $this->getSPITable();
+		DB::query("UPDATE $class SET $class.SphinxPrimaryIndexed = false WHERE $class.ID={$this->owner->ID}");
+
 		if (self::$reindex_mode == "write") $this->reindex();
 		else $this->reindexOnEndRequest();
 	}
@@ -466,7 +498,10 @@ class SphinxSearchable extends DataObjectDecorator {
 	// After delete, mark as dirty in main index (so only results from delta
 	// index will count), then update the delta index
 	function onAfterWrite() {
-		$this->forceReindex();
+		if (self::$reindex_mode == "disabled") return;
+		$this->sphinxDirty();
+		if (self::$reindex_mode == "write") $this->reindex();
+		else $this->reindexOnEndRequest();
 	}
 
 	// After delete, mark as dirty in main index (so only results from delta
