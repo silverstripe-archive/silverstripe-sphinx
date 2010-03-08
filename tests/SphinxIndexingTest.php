@@ -7,6 +7,11 @@ class SphinxIndexingTest extends SapphireTest {
 
 	static $sphinx;
 
+//	function setUp() {
+//		$this->onceOnly();
+//		parent::setUp();
+//	}
+
 	/**
 	 * We only need to do this once, because its expensive. It's not done in set_up_once, because code called from there
 	 * appears as unexecuted in the coverage reort.

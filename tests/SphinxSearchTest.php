@@ -3,7 +3,7 @@
 class SphinxSearchTest extends SapphireTest {
 	static $fixture_file = 'sphinx/tests/SphinxTest.yml';
 	
-	protected $extraDataObjects = array('SphinxTestBase', 'SphinxTestXMLPiped');
+	protected $extraDataObjects = array('SphinxTestBase', 'SphinxTestXMLPiped', 'SphinxTestDescendantA', 'SphinxTestDescendantB');
 	
 	static $sphinx = null;
 
