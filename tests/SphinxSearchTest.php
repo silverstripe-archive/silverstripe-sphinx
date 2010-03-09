@@ -25,7 +25,7 @@ class SphinxSearchTest extends SapphireTest {
 	function onceOnly() {
 		if (self::$sphinx) return;
 
-		Sphinx::set_test_mode(true);
+//		Sphinx::set_test_mode(true);
 		self::$sphinx = new Sphinx();
 		self::$sphinx->setClientClass("SphinxClientFaker", $this);
 		self::$sphinx->configure();

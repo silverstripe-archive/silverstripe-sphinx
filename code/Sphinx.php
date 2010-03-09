@@ -9,12 +9,6 @@
  */
 class Sphinx extends Controller {
 
-	/**
-	 * Enable test mode
-	 * @var bool
-	 */
-	static $test_mode = false;
-	
 	/** Only allow access to certain actions. Also need to pass the permission check in Sphinx#init */
 	static $allowed_actions = array(
 		'configure',
@@ -77,6 +71,11 @@ class Sphinx extends Controller {
 		
 		// An array that maps class names to arrays of Sphinx_Index objects.
 		$this->indexes = array();
+
+		// Determine the client to use. When running unit tests, we always use the fake client which doesn't
+		// try to connect to the server. This is done for all tests, because non-sphinx tests will otherwise
+		// fail when loading YML files, as SphinxSearchable is invoked.
+		self::$client_class = SapphireTest::is_running_test() ? "SphinxClientFaker" : "SphinxClient";
 
 		parent::__construct();
 	}
@@ -302,9 +301,8 @@ class Sphinx extends Controller {
 	 * Start searchd. NOP if already running.
 	 */
 	function start() {
-		if (self::$test_mode) {
-			return;
-		}
+		if (SapphireTest::is_running_test()) return;
+
 		if ($this->status() == 'Running') return;
 		$result = `{$this->bin('searchd')} --config {$this->VARPath}/sphinx.conf &> /dev/stdout`;
 		if ($this->status() != 'Running') {
@@ -316,9 +314,8 @@ class Sphinx extends Controller {
 	 * Stop searchd. NOP if already stopped.
 	 */
 	function stop() {
-		if (self::$test_mode) {
-			return;
-		}
+		if (SapphireTest::is_running_test()) return;
+
 		if ($this->status() != 'Running') return;
 		`{$this->bin('searchd')} --config {$this->VARPath}/sphinx.conf --stop`;
 		
@@ -329,12 +326,13 @@ class Sphinx extends Controller {
 	}
 	
 	/**
-	 * Whether to allow sphinxd to be started/stopped on connection.
+	 * By default, the constructor will determine whether to use SphinxClient or the fake client if running
+	 * unit tests. This method allows the sphinx unit tests to override that if required, and to pass a
+	 * test object through as well. Otherwise, this should generally not be called.
+	 * @param  $class
+	 * @param  $param
+	 * @return void
 	 */
-	static function set_test_mode($enable=true) {
-		self::$test_mode = $enable;
-	}
-	
 	function setClientClass($class, $param = null) {
 		self::$client_class = $class;
 		self::$client_class_param = $param;

@@ -14,9 +14,13 @@ class SphinxClientFaker implements TestOnly {
 
 	public $filters = array();
 
+	/**
+	 * If we are running a sphinx unit test, a test object may be passed through. In non-unit test cases, and
+	 * where a non-sphinx unit test is being run, this will be null.
+	 */
 	public $testObject;
 
-	function __construct($testObject) {
+	function __construct($testObject = null) {
 		$this->testObject = $testObject;
 	}
 
@@ -121,12 +125,15 @@ class SphinxClientFaker implements TestOnly {
 	}
 
 	/**
-	 * Create a mock search result from an object identified by its fixture_name.
+	 * Create a mock search result from an object identified by its fixture_name. If there is no testObject (i.e.
+	 * we're not running a sphinx search test), doesn't do anything.
 	 * @param $arr
 	 * @param $fixtureName
 	 * @return unknown_type
 	 */
 	private function addFakeSearchResult(&$arr, $fixtureName) {
+		if (!$this->testObject) return;
+
 		$obj = $this->testObject->getTestObject("SphinxTestBase", $fixtureName);
 		$info = array();
 		$info['attrs'] = array();
