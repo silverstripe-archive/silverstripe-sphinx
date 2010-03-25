@@ -85,7 +85,7 @@ class SphinxVariant_Versioned extends Object implements SphinxVariant {
 	function alterIndexes($class, &$indexes) {
 		if (!singleton($class)->hasExtension('Versioned')) return;
 		
-		$old_stage = Versioned::current_stage();
+		$oldMode = Versioned::get_reading_mode();
 		Versioned::reading_stage('Live');
 		
 		$idx = new Sphinx_Index($indexes[0]->SearchClasses, $class, $indexes[0]->Mode);
@@ -96,7 +96,7 @@ class SphinxVariant_Versioned extends Object implements SphinxVariant {
 		
 		$indexes[] = $idx;
 		
-		Versioned::reading_stage($old_stage);
+		Versioned::set_reading_mode($oldMode);
 	}
 	
 	function alterSearch(&$indexes, &$search) {
