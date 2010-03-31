@@ -613,3 +613,14 @@ class Sphinx_Index extends ViewableData {
 	}
 }
 
+/**
+ * A helper class for helping with database-specific query construction.
+ * The intention is that these functions will be rationalised and added to the abstract database
+ * classes in sapphire at a point when we can alter the API.
+ */
+class SphinxDBHelper {
+	static function update_multi_requires_prefix() {
+		if (($conn = DB::getConn()) instanceof PostgreSQLDatabase) return false;
+		return true;
+	}
+}
