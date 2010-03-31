@@ -287,7 +287,7 @@ class SphinxSearchable extends DataObjectDecorator {
 			// Select the 64 bit combination baseid << 32 | itemid as the document ID
 			"id" => "($baseid<<32)|{$bt}$base{$bt}.{$bt}ID{$bt}", 
 			// And select each value individually for filtering and easy access 
-			"_id" => "{$bt}$base{$bt}.ID",
+			"_id" => "{$bt}$base{$bt}.{$bt}ID{$bt}",
 			"_baseid" => $baseid,
 			"_classid" => $classid,
 			"_dirty" => "0"
@@ -489,7 +489,8 @@ class SphinxSearchable extends DataObjectDecorator {
 		// augment write, but if a relationship changes this doesn't otherwise
 		// get done.
 		$class = $this->getSPITable();
-		DB::query("UPDATE $class SET $class.SphinxPrimaryIndexed = false WHERE $class.ID={$this->owner->ID}");
+		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
+		DB::query("UPDATE {$bt}$class{$bt} SET {$bt}$class{$bt}.{$bt}SphinxPrimaryIndexed{$bt} = false WHERE {$bt}$class{$bt}.{$bt}ID{$bt}={$this->owner->ID}");
 
 		if (self::$reindex_mode == "write") $this->reindex();
 		else $this->reindexOnEndRequest();
