@@ -182,11 +182,16 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 			$inst = singleton($class);
 			$base = $inst->baseTable();
 
-			$join = $flagTable == $base ? "" : "LEFT JOIN `$base` on $flagTable.ID=$base.ID";
-			$index->Sources[0]->prequery = "UPDATE $flagTable $join SET $flagTable.SphinxPrimaryIndexed = true WHERE (" . $index->Sources[0]->qry->getFilter() . ")";
+			$qt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
+			$qtBase = $qt . $base . $qt;
+			$qtFlagTable = $qt . $flagTable . $qt;
+			$qtID = "{$qt}ID{$qt}";
+			$join = $flagTable == $base ? "" : "LEFT JOIN $qtBase on $qtFlagTable.$qtID=$qtBase.$qtID";
+			$prefix = SphinxDBHelper::update_multi_requires_prefix() ? "$qtFlagTable." : "";
+			$index->Sources[0]->prequery = "UPDATE $qtFlagTable $join SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1 WHERE (" . $index->Sources[0]->qry->getFilter() . ")";
 
 			// Set delta index's source to only collect items not yet in main index
-			$deltaIndex->Sources[0]->qry->where($flagTable . '.SphinxPrimaryIndexed = false');
+			$deltaIndex->Sources[0]->qry->where($flagTable . ".{$qt}SphinxPrimaryIndexed{$qt} = false");
 			
 			$deltas[] = $deltaIndex;
 		}
