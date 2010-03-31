@@ -102,7 +102,7 @@ class SphinxIndexingTest extends SapphireTest {
 
 			// Checks for goodness.
 			if ($key == "sql_query_pre" && preg_match('/SET sql_mode = \'ansi\'/', $value)) $ansi_mode_set = true;
-			if ($key == "sql_query_pre" && preg_match('/^UPDATE .* SET \"SphinxPrimaryIndexed\" = 1/', $value)) $update_spi = true;
+			if ($key == "sql_query_pre" && preg_match('/^UPDATE .* SET .*\"SphinxPrimaryIndexed\" = 1/', $value)) $update_spi = true;
 			if ($key == "sql_attr_uint" && $value == "FilterProp") $filter_prop_ok = true;
 			if ($key == "sql_attr_uint" && $value == "IntProp") $int_prop_ok = true;
 			if ($key == "sql_attr_uint" && $value == "_testextra") $test_extra_ok = true;
