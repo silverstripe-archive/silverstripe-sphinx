@@ -134,16 +134,18 @@ instance. This will re-index the object in the delta. Otherwise the M-M changes 
 
 ## Slow Saving with XML Pipes
 
-Saving pages that are indexed using XML pipes can be very slow in the CMS. This is due to the relatively high overhead of invoking
-the framework from the command line interactively in order to re-index the delta. This is compounded by versioning (which doubles the number
-of writes), cmsworkflow and any other decorator that introduces additional write() calls to the data object.
+Saving pages that are indexed using XML pipes can be very slow in the CMS. This is due to the relatively high overhead
+of invoking the framework from the command line interactively in order to re-index the delta. This is compounded by
+versioning (which doubles the number of writes), cmsworkflow and any other decorator that introduces additional write()
+calls to the data object.
 
 # Troubleshooting
 
 # Is the Sphinx configuration file being Created?
 
 * Check permissions
-* When running a dev/build via sake, don't include flush=all, as this requires you to be logged in as admin, and will generate an invalid sphinx.conf
+* When running a dev/build via sake, don't include flush=all, as this requires you to be logged in as admin, and will
+  generate an invalid sphinx.conf
 
 # Can the Indexer Build all the Indices?
 
@@ -156,8 +158,7 @@ of writes), cmsworkflow and any other decorator that introduces additional write
 
 ### "failed to send client protocol version"
 
-This error may be intermittent. It is symptomatic of a limit being reached on the number of indices.
-Ways to reduce the number of indicies:
+This error has been seen intermittently. It has been worked around with a change directly in thirdparty/sphinxapi.php.
 
 ## Sorting Issues
 
@@ -167,7 +168,10 @@ Ways to reduce the number of indicies:
 
 ## Performance of XML Pipes Write
 
-Two things that would help, especially performance of page publishes in the CMS when using xml pipes:
-
-* Queue the requests, and only re-index once on PHP shutdownm, rather than re-index on each write.
-* Possible invoke the reindexer asychronously, so the user does not have any panelty.
+XML pipes performance is not as high as with SQL, and carries additional overhead of invoking a sake instance
+to run the controller. If the messagequeue module is installed, sphinx will automatically use it and send reindex
+requests to a queue named by SphinxSearchable::$reindex_queue (default being sphinx_indexing). If the
+message queue interface that handles this queue is set to "send" => "processOnShutdown" => true (the default
+interface), then the reindexing requests will be performed on PHP shutdown in a separate process. In this configuration,
+reindexing of deltas is almost interactive without the user having the penalty. The queueing system can be used
+in other configurations, for example to offload indexing to another server that shares a database or message queue.
