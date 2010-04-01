@@ -152,7 +152,6 @@ class SphinxSearchable extends DataObjectDecorator {
 	function sphinxDirty() {
 		$sing = singleton('Sphinx');
 		$mains = array_filter($sing->getIndexesForClass($this->owner->class), create_function('$i', 'return !$i->isDelta;'));
-//		$mains = array_filter($sing->indexes($this->owner->class), create_function('$i', 'return !$i->isDelta;'));
 		$names = array_map(create_function('$idx', 'return $idx->Name;'), $mains);
 		
 		$sing->connection()->UpdateAttributes(implode(';', $names), array("_dirty"), array($this->sphinxDocumentID() => array(1)));
@@ -164,7 +163,6 @@ class SphinxSearchable extends DataObjectDecorator {
 	function reindex() {
 		$sing = singleton('Sphinx');
 		$deltas = array_filter($sing->getIndexesForClass($this->owner->class), create_function('$i', 'return $i->isDelta;'));
-//		$deltas = array_filter($sing->indexes($this->owner->class), create_function('$i', 'return $i->isDelta;'));
 		$sing->reindex($deltas);
 	}
 

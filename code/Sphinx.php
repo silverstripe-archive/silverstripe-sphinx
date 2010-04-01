@@ -48,6 +48,7 @@ class Sphinx extends Controller {
 			$this->Database->port = $a[1];
 		}
 
+		// @todo This is specific to MySQL. Default port should come from the DB layer.
 		if (!is_numeric($this->Database->port)) $this->Database->port = 3306;		
 		
 		// If server is localhost, sphinx tries connecting using a socket instead. Lets avoid that
