@@ -144,7 +144,18 @@ class Sphinx extends Controller {
 
 			$sig = $this->getSearchSignature($class);
 
+			// Determine the configuration to use. If this class doesn't have a sphinx conf, its
+			// ancestors may.
 			$conf = singleton($class)->stat('sphinx');
+			if (!$conf) {
+				$ancestors = ClassInfo::ancestry($class, true);
+				array_pop($ancestors); // drop off this class
+				foreach (array_reverse($ancestors) as $c) {
+					$conf = singleton($c)->stat('sphinx');
+					if ($conf) break;
+				}
+			}
+
 			$mode = ($conf && isset($conf['mode'])) ? $conf['mode'] : '';
 			if ($mode == '') $mode = "sql";
 
@@ -158,8 +169,7 @@ class Sphinx extends Controller {
 				else if (is_subclass_of($class, $base)) $index_desc[$sig]["classes"][] = $class;
 				else $index_desc[$sig] = array("classes" => array($class), "baseClass" => $class, "mode" => $mode);
 			}
-			else
-				$index_desc[$sig] = array("classes" => array($class), "baseClass" => $class, "mode" => $mode);
+			else $index_desc[$sig] = array("classes" => array($class), "baseClass" => $class, "mode" => $mode);
 		}
 
 		$result = array();
@@ -170,20 +180,33 @@ class Sphinx extends Controller {
 				SphinxVariants::alterIndexes($baseClass, $indexes);
 
 				$this->indexes[$baseClass] = $indexes;
-			}	
+			}
 
 			$result = array_merge($result, $this->indexes[$baseClass]);
 		}
-
 		return $result;
 	}
 	
-	// Return a string signature for a class.
+	// Return a string signature for a class. This consists of the following info, which must all be present:
+	// - the most base ancestor of the class that has the sphinx decorator
+	// - all the fields, in alphabetic order, with filter and sort properties added.
+	// If any two classes have identical signatures, they should be able to be combined.
 	protected function getSearchSignature($class) {
 		$sing = new $class();
 		$fields = $sing->sphinxFields($class);
 
-		$result = ":";
+		// Determine the base decorated class
+		$ancestors = ClassInfo::ancestry($class, true);
+		$base = "";
+		foreach ($ancestors as $c) {
+			if (singleton($c)->hasExtension('SphinxSearchable')) {
+				$base = $c;
+				break;
+			}
+
+		}
+
+		$result = ":$base:";
 
 		ksort($fields);
 
