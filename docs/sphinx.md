@@ -5,6 +5,9 @@
 You will need to install sphinx 0.99 or higher on your environment. Sphinx is not distributed with the SilverStripe
 sphinx module.
 
+The sphinx binaries should be compiled with 64-bit IDs enabled.
+If the xmlpipes mode is going to be used, the requisite xml libraries are also required.
+
 Ensure the sphinxd search daemon process is set up to start when the computer reboots, running as the same user as apache
 (e.g. www-data)
 
@@ -122,6 +125,34 @@ Classes with the same signature are combined into a single index.
 For example, consider a class A that is decorated with SphinxSearchable, with subclasses B and C. B does not have any
 additional indexable fields, but C does. Objects of class B will be put in the same index as objects of class A, but
 a separate index will be constructed for class C.
+
+## Triggers for Reindexing
+
+Sphinx maintains two sets of indexes, primary and deltas. A primary delta will contain all indexed objects (for the
+classes for that index), whereas the delta index only contains recently changed objects. Each time an indexed object
+is changed, the SphinxSearchable decorator invalidates that object in the primary index, and re-indexes the delta
+index to pick up just those that have changed since the primary was last rebuilt.
+
+As changes occur, the delta index will grow, and will progressively get slower to index, until the primary index is
+rebuilt and the delta index cleared.
+
+
+The primary index is only rebuilt as a result of calling Sphinx::reindex()  (Sphinx class is a controller, so accessing
+Sphinx/reindex will do this). This is typically set up as a cron job.
+
+The reindexing of deltas is controlled by the static variable `SphinxSearchable::$reindex_mode`:
+* If "endrequest" (the default) reindexing is done once at the end of the PHP request, and only if a write() or delete()
+  have been done (any op which flags the record dirty). If the messagequeue module is installed and
+  `SphinxSearchable::$reindex_queue` is specified, a message is sent to do the refresh to keep it out of the user process.
+  Otherwise it done in this process but at the end of the PHP request (this will be noticable to the user)
+* If "write" (old behaviour) reindexing is done on write or delete.
+* If "disabled" reindexing of the delta is disabled, which is useful when writing many SphinxSearchable items
+  (such as during a migration import) where the burden of keeping the Sphinx index updated in realtime is both
+  unneccesary and prohibitive.
+
+Note that the default configuration of messagequeue will execute the delta reindexing in a separate process initiated
+as part of PHP shutdown. The effect is the delta is reindexed in near-realtime, but without the user experiencing
+the delay. If xmlpipes is used, messagequeue is highly recommended.
 
 # Indexing Content of Files
 
