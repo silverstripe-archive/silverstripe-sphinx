@@ -324,7 +324,10 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'Date':
 				case 'SSDatetime':
 				case 'SS_Datetime':
-					$select[$name] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt})";
+					$db = DB::getConn();
+					if ($db instanceof MySQLDatabase) $select[$name] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt})";
+					else if ($db instanceof PostgreSQLDatabase) $select[$name] = "date_part('epoch', \"timestamp\"({$bt}$class{$bt}.{$bt}$name{$bt}))";
+					else user_error("Sphinx module does not currently support timestamps for this database platform");
 					if ($filter) $attributes[$name] = "timestamp";
 					break;
 
