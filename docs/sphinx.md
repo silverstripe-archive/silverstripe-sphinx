@@ -1,6 +1,51 @@
 # Server Installation
 
+## Install Sphinx Binaries
+
+You will need to install sphinx 0.99 or higher on your environment. Sphinx is not distributed with the SilverStripe
+sphinx module.
+
+Ensure the sphinxd search daemon process is set up to start when the computer reboots, running as the same user as apache
+(e.g. www-data)
+
+## Install and Configure the SilverStripe Sphinx Module
+
+To install the module source, extract the module into the root directory of your project (or add to the svn externals
+of the project). If you want near-realtime delta-indexing outside the user transaction (recommended), also install the
+`messagequeue` module. Sphinx will automatically detect and use it by default.
+
+To configure, you will need to apply the SphinxSearchable decorator to the classes that you want Sphinx to index,
+and set any additional options on those classes. See the section "Applying the Decorator" for more information on ways
+to configure indexing.
+
+## Refresh Configuration and Reindex
+
+/dev/build the project. This will update the database structure, but also generate the sphinx configuration file from
+the decorated classes. This needs to be done any time there is a change to which classes are decorated, or if the class
+hierarchy is changed in way that affects what is indexed, if other changes are made to indexed classes, or if the sphinx
+configuration static properties are changed.
+
+You can use the command:
+`sapphire/sake dev/build` to do this. (Don't use the variant `sapphire/sake dev/build flush=all` - this will generate
+an incomplete sphinx.conf file)
+
+Ensure the sphinx directory and it's contents are owned by the same user as the sphinx process.
+
+The command:
+`sapphire/sake Sphinx/reindex` can be used to force Sphinx to refresh its indexes. Note that the sphinx daemon may take
+a little time to rotate the set of indexes it uses. This happens automatically.
+
+## Set Up Periodic Reindexing
+
+Set up a cron job to run as the apache user and issue the `sapphire/sake Sphinx/reindex` command. The effect of this
+is to cause Sphinx to completely rebuild it's primary indexes, and clear the delta indexes. If this is not set up,
+the delta indexes will tend to increase in size as indexed content is changed, and will increasingly degrade
+system performance. Depending on the nature and size of the content, the cron job is typically set up to run periodically
+anywhere from 15 minutes to a 24 hour period.
+
 # Applying the Decorator
+
+The following example shows how the Sphinx decorator is applied to cause indexing of a class.
 
 `class MyPage extends Page {
 	static $db = array(
@@ -23,6 +68,8 @@
 		"external_content" => array("field" => array("myclass", "somefunc"))
 	);
 `
+
+This will mark the class and all sub-classes for indexing.
 
 ## Properties of the $sphinx Static
 
@@ -62,9 +109,19 @@
 
 * excludeByDefault (default false) When false, all properties on sub-classes are automatically indexed, and all non-string fields are
   made filterable. This gives maximum searchability with the cost of potentially increasing the number of indices, and increasing the
-  emory footprint of searchd. If this is set to true, fields in subclasses are excluded from indexing unless the sub-class specifically
+  memory footprint of searchd. If this is set to true, fields in subclasses are excluded from indexing unless the sub-class specifically
   defines $searchFields, $filterFields.
   e.g. `static $extensions = array('SphinxSearchable(true)'); // disable automatic inclusion of all subclass fields`
+
+## Notes on How Indexes are Constructed
+
+The Sphinx module automatically determines the indexes required for a given set of classes. It calculates a signature
+for each searchable class that incorporates the fields to be indexed, extra fields and attributes for filtering.
+Classes with the same signature are combined into a single index.
+
+For example, consider a class A that is decorated with SphinxSearchable, with subclasses B and C. B does not have any
+additional indexable fields, but C does. Objects of class B will be put in the same index as objects of class A, but
+a separate index will be constructed for class C.
 
 # Indexing Content of Files
 
@@ -106,7 +163,6 @@ the function simply calls extractFileAsText() (in the decorator) on the related 
 
 Generally File should not be directly indexed, as this provides no control over which files are indexed.
 
-## Indexing
 
 # Managing Larger Configurations
 
@@ -123,6 +179,15 @@ Ways to control these factors include:
 * For classes that change very infrequently, or are small, consider disabling delta indices.
 * For versioned pages, if search is not required in the CMS, consider explicit control over the stages that are indexed. (e.g. only index Live
   if searching is only enabled  at the front end.)
+
+# Best Practices
+
+* On larger sites, don't make SiteTree or Page searchable directly, but create sub-classes of Page and decorate those.
+  This provides better control over what classes are indexed (e.g. a Page derivative whose content is to summarise
+  other content or pages will probably not want to be indexed).
+* If files need to be indexed, consider sub-classing File rather than decorating it directly, as this will cause overhead
+  in attempting to index non-indexable files such as images, or use the index_filter property to be selective on which
+  files are indexed.
 
 # Known Issues
 
