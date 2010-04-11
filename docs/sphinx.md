@@ -29,8 +29,7 @@ hierarchy is changed in way that affects what is indexed, if other changes are m
 configuration static properties are changed.
 
 You can use the command:
-`sapphire/sake dev/build` to do this. (Don't use the variant `sapphire/sake dev/build flush=all` - this will generate
-an incomplete sphinx.conf file)
+`sapphire/sake dev/build` to do this.
 
 Ensure the sphinx directory and it's contents are owned by the same user as the sphinx process.
 
@@ -240,8 +239,6 @@ calls to the data object.
 # Is the Sphinx configuration file being Created?
 
 * Check permissions
-* When running a dev/build via sake, don't include flush=all, as this requires you to be logged in as admin, and will
-  generate an invalid sphinx.conf
 
 # Can the Indexer Build all the Indices?
 
