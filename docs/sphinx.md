@@ -193,7 +193,44 @@ the function simply calls extractFileAsText() (in the decorator) on the related 
 
 Generally File should not be directly indexed, as this provides no control over which files are indexed.
 
+# Doing a search
 
+`SphinxSearch::search()` actually performs a search. e.g.:
+
+`
+		$res = SphinxSearch::search(array('Page', 'Document',
+									$queryString,
+									array(  'require' => $includeFilters,
+											'exclude' => $excludeFilters,
+											'page' => $page,
+											'pagesize' => $pagesize,
+											'sortmode' => $sortmode,
+											'sortarg' => $sortarg,
+											'suggestions' => true)));
+`
+
+The parameters are:
+
+* An array of classes to search. Subclasses are also searched. The set of indexed is automatically determined.
+* The query string itself, which is just a string with space-separated words and other tokens to be interpreted by
+  sphinx. See the sphinx documentation for the available options.
+* An options array
+
+Available options are:
+* 'require' - an array of inclusion filters that are passed to Sphinx. Results will match these filters.
+* 'exclude' - an array of exclusion filters that are passed to Sphinx. Results will not match these filters.
+* 'page' - in a multi-page result, this is the page of results
+* 'pagesize' - the number of results to return in each page.
+* 'sortmode' - the sorting mode to user.
+* 'sortarg' - an argument to the sorting mode.
+* 'suggestions' - if true, alternative spelling suggestions are returned if there are less than 10 results. If false,
+  suggestions are never returned.
+
+The result is an associative array with the following keys:
+* 'Matches' - a DataObjectSet with the search results.
+* 'Suggestions' - if suggestions are enabled and there are less than 10, this will be an array of possible values.
+
+  
 # Managing Larger Configurations
 
 Sphinx performance and resource usage is affected by a number of factors, including:
