@@ -95,6 +95,7 @@ class SphinxSearch extends Object {
 			'start' => 0,
 			'page' => 0,
 			'pagesize' => 10,
+			'suggestions' => true,
 			'include_child_classes' => true,
 			'sortmode' => 'relevance',
 			'sortarg' => null
@@ -242,7 +243,7 @@ class SphinxSearch extends Object {
 		if ($err && self::$search_error_generates_user_error) user_error($err, E_USER_ERROR);
 		
 		/* If we didn't get that many matches, try looking through all possible spelling corrections to find the one that returns the most matches */
-		if ($res['total'] < 10) {
+		if ($args['suggestions'] && $res['total'] < 10) {
 			$ret['Suggestion'] = self::findSpellingSuggestions($indexes, $con, $qry, $res);
 		}
 
