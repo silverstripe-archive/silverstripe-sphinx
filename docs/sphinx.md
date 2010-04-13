@@ -273,6 +273,18 @@ calls to the data object.
 
 # Troubleshooting
 
+The first thing to do is issue the command:
+`sapphire/sake Sphinx/diagnose` on the command line. This will attempt to find a number of common conditions such as:
+
+* no classes are decorated with SphinxSearchable
+* the sphinx binaries aren't installed
+* the configuration file or indexes haven't been built
+* indexes are not in the sphinx configuration file that should be, indicating changes to the decorated classes
+  without a dev/build.
+* delta indexes are populated but primaries not, indicating a reindex has never been done.
+
+More tests will be added over time.
+
 # Is the Sphinx configuration file being Created?
 
 * Check permissions
