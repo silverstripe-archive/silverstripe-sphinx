@@ -15,7 +15,8 @@ class Sphinx extends Controller {
 		'reindex',
 		'start',
 		'stop',
-		'status'
+		'status',
+		'diagnose'
 	);
 	
 	/** Directory that the sphinx binaries (searchd, indexer, etc.) are in. Add override to mysite/_config.php if they are in a custom location */
@@ -422,6 +423,130 @@ class Sphinx extends Controller {
 			if (in_array($className, $index->SearchClasses)) $result[] = $index;
 		}
 		return $result;
+	}
+
+	/**
+	 * Function to check for issues in the Sphinx environment, to make it easier to figure out if there are things
+	 * wrong. Displays a list of issues to the terminal, and also displays what Sphinx understands of what configuration
+	 * it has.
+	 * @return void
+	 */
+	function diagnose() {
+		$errors = array();
+		$warnings = array();
+		$notices = array();
+
+		// Check if there are decorated classes.
+		$classes = SphinxSearchable::decorated_classes();
+		if (!$classes || count($classes) == 0) $warnings[] = array("message" => "There are no decorated classes",
+													  "solutions" => array("Add SphinxSearchable extension to classes to be searched"));
+
+		// Database configuration
+		$notices[] = "Database server: " . $this->Database->server;
+		$notices[] = "Database port: " . $this->Database->port;
+		$notices[] = "Database props:" . $this->Database->database;
+
+		// Check that sphinx directories and the config file are present.
+		$notices[] = "";
+		$notices[] = "Sphinx listening to: " . $this->Listen;
+		$notices[] = "Sphinx configuration location is " . $this->VARPath;
+		if (!file_exists($this->CNFPath)) $errors[] = array("message" => "Cannot access sphinx directory $this->VARPath",
+															"solutions" => array(
+																"Ensure a dev/build has been run since classes were decorated",
+																"Check that apache and/or cli has permissions to the directory"
+															));
+		else if (!file_exists("{$this->VARPath}/sphinx.conf")) $errors[] = array("message" => "Cannot access sphinx config file $this->VARPath",
+															"solutions" => array(
+																"Ensure a dev/build has been run since classes were decorated",
+																"Check that apache and/or cli has permissions to the directory"
+															));
+		else if (!file_exists($this->IDXPath)) $errors[] = array("message" => "Cannot access sphinx idxs directory $this->IDXPath",
+															"solutions" => array(
+																"Ensure a dev/build has been run since classes were decorated",
+																"Check that apache and/or cli has permissions to the directory"
+															));
+
+		// Check if there is a sphinxd process
+		//		$this->PIDFile = self::$pid_file ? self::$pid_file : $this->VARPath . '/searchd.pid';
+
+		// Check if the sphinx binaries are present on the host
+		$notices[] = "Sphinx binary location: " . $this->BINPath;
+		foreach (array("indexer", "searchd", "search") as $file) if (!file_exists($this->BINPath . "/$file")) $errors[] = array(
+																		"message" => "Cannot find the sphinx '$file' binary",
+																		"solutions" => array(
+																			"Ensure that sphinx binaries are installed in $this->BINPath"
+																		));
+
+		// Check if file extraction programs are present. Warnings only. Should only test if there are classes
+		// decorated with the file extractor.
+
+		// Run through the primary indexes and check them.
+		// Check if index files are present, and check their size. Deltas can be zero, non deltas indicate
+		// that indexing has never been run. We can probably determine by the gap between a delta and main index
+		// whether its just because its new, or on production if the reindex is not scheduled.
+		foreach ($this->indexes() as $index) {
+			$name = $index->Name;
+
+			// Check that the config file contains a definition for this index.
+			if (`grep "source {$name}Src" {$this->VARPath}/sphinx.conf` == "" ||
+				`grep "index {$name}" {$this->VARPath}/sphinx.conf` == "") $errors[] = array("message" => "Cannot find either the source or index def for $name in sphinx.conf",
+															"solutions" => array(
+																"Ensure a dev/build has been run since classes were decorated",
+																"Check that indexing has been run (Sphinx/reindex)"
+															));
+
+			// The rest of these checks are comparing primary indexes to their deltas, so if we're a delta,
+			// skip this bit.
+			if ($index->isDelta) continue;
+
+			// Find the words file in index directory, and the delta.
+			$f1 = "$this->IDXPath/$name.words";
+			$f2 = "$this->IDXPath/{$name}Delta.words";
+			if (!file_exists($f1) || !file_exists($f2)) $errors[] = array("message" => "Cannot access words file for index $name or its delta",
+															"solutions" => array(
+																"Ensure a dev/build has been run since classes were decorated",
+																"Check that indexing has been run (Sphinx/reindex)",
+																"Check that apache and/or cli has permissions to the directory"
+															));
+			if (filesize($f1) == 0 && filesize($f2) > 0) $warnings[] = array("message" => "Primary index for $name has not been generated, but delta has data",
+															"solutions" => array(
+																"Perform a reindex (Sphinx/reindex)",
+																"Set up a cron job to run Sphinx/index"
+															));
+
+		}
+
+		// Check permissions on sphnx files. Warning if they are not owned by www-data or whatever apache runs as.
+
+		if (count($errors)) {
+			echo "ERRORS:\n";
+			foreach ($errors as $error) {
+				echo "* {$error["message"]}\n";
+				if (isset($error["solutions"])) {
+					echo "  Possible solutions:\n";
+					foreach ($error["solutions"] as $solution) echo "  - $solution\n";
+				}
+			}
+			echo "\n";
+		}
+
+		if (count($warnings)) {
+			echo "WARNINGS:\n";
+			foreach ($warnings as $warning) {
+				echo "* {$warning["message"]}\n";
+				if (isset($warning["solutions"])) {
+					echo "  Possible solutions:\n";
+					foreach ($warning["solutions"] as $solution) echo "  - $solution\n";
+				}
+			}
+			echo "\n";
+		}
+
+		if (count($notices)) {
+			echo "NOTICES:\n";
+			foreach ($notices as $notice) echo $notice == "" ? "\n" : "- $notice\n";
+			echo "\n";
+		}
 	}
 }
 
