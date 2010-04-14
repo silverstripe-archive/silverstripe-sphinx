@@ -508,7 +508,7 @@ class Sphinx extends Controller {
 																"Check that indexing has been run (Sphinx/reindex)",
 																"Check that apache and/or cli has permissions to the directory"
 															));
-			if (filesize($f1) == 0 && filesize($f2) > 0) $warnings[] = array("message" => "Primary index for $name has not been generated, but delta has data",
+			else if (@filesize($f1) == 0 && @filesize($f2) > 0) $warnings[] = array("message" => "Primary index for $name has not been generated, but delta has data",
 															"solutions" => array(
 																"Perform a reindex (Sphinx/reindex)",
 																"Set up a cron job to run Sphinx/index"
