@@ -233,7 +233,7 @@ class SphinxSearch extends Object {
 
 		$ret = array();
 		$ret['Matches'] = new DataObjectSet($results);
-		$ret['Matches']->setPageLimits($start, $args['pagesize'], count($results));
+		$ret['Matches']->setPageLimits($start, $args['pagesize'], $res['total']);
 
 		/* Pull any warnings or errors through to the returned data object */
 		if ($err = $con->getLastWarning()) $ret['Warning'] = $err;
