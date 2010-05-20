@@ -306,11 +306,12 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'Text':
 				case 'HTMLVarchar':
 				case 'HTMLText':
+					$db = DB::getConn();
 					$select[$name] = "{$bt}$class{$bt}.{$bt}$name{$bt}";
 
 					// If the field is sortable, we generate an extra column of the 1st four chars packed to assist in
 					// sorting, since sphinx doesn't directly allow sorting by strings.
-					if ($sortable) {
+					if ($sortable && !($db instanceof SQLite3Database || $db instanceof SQLitePDODatabase)) {
 						$select["_packed_$name"] = "(ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},1,1)) << 24) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},2,1)) << 16) | (ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},3,1)) << 8) | ascii(substr({$bt}$class{$bt}.{$bt}$name{$bt},4,1))";
 						$attributes["_packed_$name"] = "uint";
 					}
