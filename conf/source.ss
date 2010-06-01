@@ -1,5 +1,5 @@
 source BaseSrc  {
-	type = mysql
+	type = $Database.type
 	sql_host = $Database.server
 	sql_user = $Database.username
 	sql_pass = $Database.password

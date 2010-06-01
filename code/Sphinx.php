@@ -41,6 +41,20 @@ class Sphinx extends Controller {
 		global $databaseConfig;
 
 		$this->Database = new ArrayData($databaseConfig);
+
+		switch ($this->Database->type) {
+			case "MySQLDatabase":
+				$this->Database->type = "mysql";
+				break;
+			case "PostgreSQLDatabase":
+				$this->Database->type = "pgsql";
+				break;
+			case "MSSQLDatabase":
+				$this->Database->type = "mssql";
+				break;
+			default:
+				throw new Exception("Sphinx does not support database engine " . $this->Database->type);
+		}
 		
 		// If there is a custom port, its on the end of Database->server, so take it off and stick it in the port property (which is not in $databaseConfig)
 		if (strpos($this->Database->server, ":") !== FALSE) {
