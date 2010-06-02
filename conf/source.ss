@@ -5,6 +5,4 @@ source BaseSrc  {
 	sql_pass = $Database.password
 	sql_db = $Database.database
 	sql_port = $Database.port
-	
-	sql_query_pre = SET NAMES utf8
 }

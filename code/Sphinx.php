@@ -211,7 +211,7 @@ class Sphinx extends Controller {
 		$sing = new $class();
 		$fields = $sing->sphinxFields($class);
 
-		// Determine the base decorated class
+		// Determine the base decorated class    
 		$ancestors = ClassInfo::ancestry($class, true);
 		$base = "";
 		foreach ($ancestors as $c) {
@@ -623,7 +623,10 @@ class Sphinx_Source_SQL extends Sphinx_Source {
 		$conf = array();
 		$conf[] = "source {$this->Name}Src : BaseSrc {";
 
-		if (defined('DB::USE_ANSI_SQL')) $conf[] = "sql_query_pre = SET sql_mode = 'ansi'";
+		if (($db = DB::getConn()) instanceof MySQLDatabase) {
+			if (defined('DB::USE_ANSI_SQL')) $conf[] = "sql_query_pre = SET sql_mode = 'ansi'";
+			$conf[] = "sql_query_pre = SET NAMES utf8";
+		}
 		if ($this->prequery) $conf[] = "sql_query_pre = " . preg_replace("/\s+/", " ", $this->prequery);
 		$conf[] = "sql_query = " . preg_replace("/\s+/"," ",$this->qry);
 		foreach ($this->attributes as $name => $type) $conf[] = "sql_attr_$type = $name";
