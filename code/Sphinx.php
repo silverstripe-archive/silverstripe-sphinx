@@ -41,6 +41,7 @@ class Sphinx extends Controller {
 		global $databaseConfig;
 
 		$this->Database = new ArrayData($databaseConfig);
+		$this->SupportedDatabase = true;
 
 		switch ($this->Database->type) {
 			case "MySQLDatabase":
@@ -53,7 +54,11 @@ class Sphinx extends Controller {
 				$this->Database->type = "mssql";
 				break;
 			default:
-				throw new Exception("Sphinx does not support database engine " . $this->Database->type);
+				// Other databases are not supported by sphinx itself, so this
+				// will prevent generation of database connection settings to
+				// sphinx.conf. However, we don't throw an error, because 
+				// xmlpipes can still be used in this mode.
+				$this->SupportedDatabase = false;
 		}
 		
 		// If there is a custom port, its on the end of Database->server, so take it off and stick it in the port property (which is not in $databaseConfig)
@@ -455,10 +460,15 @@ class Sphinx extends Controller {
 		if (!$classes || count($classes) == 0) $warnings[] = array("message" => "There are no decorated classes",
 													  "solutions" => array("Add SphinxSearchable extension to classes to be searched"));
 
+		$notices[] = "Database type: " . $this->Database->type;
+
 		// Database configuration
-		$notices[] = "Database server: " . $this->Database->server;
-		$notices[] = "Database port: " . $this->Database->port;
-		$notices[] = "Database props:" . $this->Database->database;
+		if ($this->SupportedDatabase) {
+			$notices[] = "Database server: " . $this->Database->server;
+			$notices[] = "Database port: " . $this->Database->port;
+			$notices[] = "Database props: " . $this->Database->database;
+		}
+		else $notices[] = "Database type " . $this->Database->server . " is not natively supported by Sphinx. Only xmlpipe can be used";
 
 		// Check that sphinx directories and the config file are present.
 		$notices[] = "";
