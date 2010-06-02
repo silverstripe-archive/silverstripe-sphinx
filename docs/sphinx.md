@@ -89,7 +89,7 @@ This will mark the class and all sub-classes for indexing.
     implemented to create proxy int filter fields, which are then sorted more accurately once the result is returned from the sphinx process.
 * extra_fields - defines extra fields into the main SQL used for generating indexes, and includes them as attributes in the index. The value can
   be a SQL expression, but can also be of the form "class::method" which is called using call_user_func to get the value. The resulting value should
-  be an int.
+  be a SQL expression that returns an int.
 * filterable_many_many - an array of many-many relationship names, or '*' for all many-many relationships on this class. These are added as
   filters to the index. 
 * extra_many_many - this allows injection of many-many attributes bypassing sapphire's generation of SQL automatically of the relationship. This
