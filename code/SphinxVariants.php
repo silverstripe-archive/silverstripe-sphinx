@@ -186,10 +186,22 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 			$qtBase = $qt . $base . $qt;
 			$qtFlagTable = $qt . $flagTable . $qt;
 			$qtID = "{$qt}ID{$qt}";
-			$join = $flagTable == $base ? "" : "LEFT JOIN $qtBase on $qtFlagTable.$qtID=$qtBase.$qtID";
 			$prefix = SphinxDBHelper::update_multi_requires_prefix() ? "$qtFlagTable." : "";
-//			$index->Sources[0]->prequery = "UPDATE $qtFlagTable $join SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1 WHERE (" . $index->Sources[0]->qry->getFilter() . ")";
-			$index->Sources[0]->prequery = "UPDATE $qtFlagTable $join SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1 WHERE (\"ClassName\" in ('" . implode("','", $index->Sources[0]->SearchClasses) . "'))";
+
+			$db = DB::getConn();
+			if ($db instanceof MySQLDatabase) {
+				$join = $flagTable == $base ? "" : "LEFT JOIN $qtBase on $qtFlagTable.$qtID=$qtBase.$qtID";
+				// $index->Sources[0]->prequery = "UPDATE $qtFlagTable $join SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1 WHERE (" . $index->Sources[0]->qry->getFilter() . ")";
+				$index->Sources[0]->prequery = "UPDATE $qtFlagTable $join SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1 WHERE (\"ClassName\" in ('" . implode("','", $index->Sources[0]->SearchClasses) . "'))";
+			}
+			else if ($db instanceof PostgreSQLDatabase) {
+				$sql = "UPDATE $qtFlagTable SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1";
+				if ($flagTable != $base) $sql .= " FROM $qtBase WHERE $qtFlagTable.$qtID=$qtBase.$qtID AND ";
+				else $sql .= " WHERE ";
+				$sql .= "(\"ClassName\" in ('" . implode("','", $index->Sources[0]->SearchClasses) . "'))";
+				$index->Sources[0]->prequery = $sql; 
+			}
+
 
 			// Set delta index's source to only collect items not yet in main index
 			$deltaIndex->Sources[0]->qry->where($qtFlagTable . ".{$qt}SphinxPrimaryIndexed{$qt} = 0");
