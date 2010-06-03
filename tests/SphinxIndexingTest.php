@@ -114,7 +114,7 @@ class SphinxIndexingTest extends SapphireTest {
 		}
 		$this->assertTrue($query_runs_ok, "Query runs OK");
 		if (DB::getConn() instanceof MySQLDatabase) $this->assertTrue($ansi_mode_set, "SQL Pre ansi setting");
-		$this->assertTrue($update_spi, "SQL Pre reset SphinxPrimaryIndexed on base");
+		if (self::$sphinx->SupportedDatabase) $this->assertTrue($update_spi, "SQL Pre reset SphinxPrimaryIndexed on base");
 		$this->assertTrue($filter_prop_ok, "FilterProp defined OK");
 		$this->assertTrue($int_prop_ok, "IntProp defined OK");
 		$this->assertTrue($test_extra_ok, "textextra field defined OK");
