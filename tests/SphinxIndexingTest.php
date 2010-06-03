@@ -118,7 +118,7 @@ class SphinxIndexingTest extends SapphireTest {
 		$this->assertTrue($filter_prop_ok, "FilterProp defined OK");
 		$this->assertTrue($int_prop_ok, "IntProp defined OK");
 		$this->assertTrue($test_extra_ok, "textextra field defined OK");
-		$this->assertTrue($string_packed_ok, "packed field for string sort OK");
+		if (!($db instanceof SQLite3Database || $db instanceof SQLitePDODatabase)) $this->assertTrue($string_packed_ok, "packed field for string sort OK");
 		$this->assertTrue(!$filter_prop_wrong_type, "FilterProp is the right type");
 		$this->assertTrue(!$non_filter_prop_present, "non-filtered property not defined as attribute");	
 	}
