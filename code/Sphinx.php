@@ -763,14 +763,21 @@ class Sphinx_Index extends ViewableData {
 		$this->Sources = array();
 		$this->Sources[] = Sphinx_Source::source_from_mode($classes, $baseClass, $mode);
 
-		$this->baseTable = null;
+		// Base table is the root table for the DataObject. spiTable is the
+		// table that contains the SphinxPrimaryIndexed column, which is not
+		// necessarily in the base table if the decorator is not applied to the
+		// base class.
+		$inst = singleton($baseClass);
+		$this->baseTable = $inst->baseTable();
+
+		$this->spiTable = null;
 			
 		if (!defined('DB::USE_ANSI_SQL')) $pattern = '/^`([^`]+)`.`SphinxPrimaryIndexed`/';
 		else $pattern = '/^"([^"]+)"."SphinxPrimaryIndexed"/';
 
 		foreach ($this->Sources[0]->select as $alias => $value) {
 			if (preg_match($pattern, $value, $m)) { 
-				$this->baseTable = $m[1];
+				$this->spiTable = $m[1];
 				break; 
 			} 
 		}

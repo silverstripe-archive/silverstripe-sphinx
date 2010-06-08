@@ -93,6 +93,7 @@ class SphinxVariant_Versioned extends Object implements SphinxVariant {
 		$idx->BaseClass = $class;
 		$idx->Sources[0]->Name = $idx->Sources[0]->Name . 'Live';
 		$idx->baseTable = $idx->baseTable . '_Live';
+		$idx->spiTable = $idx->spiTable . '_Live';
 		
 		$indexes[] = $idx;
 		
@@ -168,7 +169,7 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 	
 	function alterIndexes($class, &$indexes) {
 		foreach ($indexes as $index) {
-			$flagTable = $index->baseTable;
+			$flagTable = $index->spiTable;
 		
 			// Build the delta index
 			$deltaIndex = clone $index;
@@ -178,25 +179,21 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 			$deltaIndex->Sources[0]->Name = $index->Sources[0]->Name . 'Delta';
 			$deltaIndex->Sources[0]->qry = clone $index->Sources[0]->qry;
 			
-			// Set main index's source to update the flag.
-			$inst = singleton($class);
-			$base = $inst->baseTable();
-
 			$qt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
-			$qtBase = $qt . $base . $qt;
+			$qtBase = $qt . $index->baseTable . $qt;
 			$qtFlagTable = $qt . $flagTable . $qt;
 			$qtID = "{$qt}ID{$qt}";
 			$prefix = SphinxDBHelper::update_multi_requires_prefix() ? "$qtFlagTable." : "";
 
 			$db = DB::getConn();
 			if ($db instanceof MySQLDatabase) {
-				$join = $flagTable == $base ? "" : "LEFT JOIN $qtBase on $qtFlagTable.$qtID=$qtBase.$qtID";
+				$join = $flagTable == $index->baseTable ? "" : "LEFT JOIN $qtBase on $qtFlagTable.$qtID=$qtBase.$qtID";
 				// $index->Sources[0]->prequery = "UPDATE $qtFlagTable $join SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1 WHERE (" . $index->Sources[0]->qry->getFilter() . ")";
 				$index->Sources[0]->prequery = "UPDATE $qtFlagTable $join SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1 WHERE (\"ClassName\" in ('" . implode("','", $index->Sources[0]->SearchClasses) . "'))";
 			}
 			else if ($db instanceof PostgreSQLDatabase) {
 				$sql = "UPDATE $qtFlagTable SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1";
-				if ($flagTable != $base) $sql .= " FROM $qtBase WHERE $qtFlagTable.$qtID=$qtBase.$qtID AND ";
+				if ($flagTable != $index->baseTable) $sql .= " FROM $qtBase WHERE $qtFlagTable.$qtID=$qtBase.$qtID AND ";
 				else $sql .= " WHERE ";
 				$sql .= "(\"ClassName\" in ('" . implode("','", $index->Sources[0]->SearchClasses) . "'))";
 				$index->Sources[0]->prequery = $sql; 
