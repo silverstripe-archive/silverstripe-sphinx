@@ -7,11 +7,6 @@ class SphinxIndexingTest extends SapphireTest {
 
 	static $sphinx;
 
-//	function setUp() {
-//		$this->onceOnly();
-//		parent::setUp();
-//	}
-
 	/**
 	 * We only need to do this once, because its expensive. It's not done in set_up_once, because code called from there
 	 * appears as unexecuted in the coverage reort.
@@ -20,7 +15,6 @@ class SphinxIndexingTest extends SapphireTest {
 	function onceOnly() {
 		if (self::$sphinx) return;
 
-//		Sphinx::set_test_mode(true);
 		self::$sphinx = new Sphinx();
 		self::$sphinx->setClientClass("SphinxClientFaker", $this);
 		self::$sphinx->configure();
@@ -54,6 +48,7 @@ class SphinxIndexingTest extends SapphireTest {
 // removed this test, not sure this can be tested in test-runner environments where sphinx is not actually present,
 // because the pspell dictionary is generated from results from sphinx indexer.
 //		$this->assertTrue(file_exists("{$sphinx->VARPath}/sphinx.psdic"), "pspell dictionary exists");
+
 		$this->assertTrue(file_exists("{$sphinx->VARPath}/idxs"), "indexes directory exists");
 
 		// Check for basic existance of things in the config file
