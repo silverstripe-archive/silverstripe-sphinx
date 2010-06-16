@@ -303,9 +303,10 @@ class Sphinx extends Controller {
 		// Generate Sphinx index
 		$idxlist = implode(' ', $idxs);
 
-//		echo "running command {$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout";
+		$indexingOutput = "";
+		if (!SapphireTest::is_running_test())
+			$indexingOutput = `{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
 
-		$indexingOutput = `{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
 		// We can't seem to be able to rely on exit status code, so we have to do this
 		if(!preg_match("/\nERROR:/", $indexingOutput)) {
 			// Generate word lists
@@ -313,7 +314,8 @@ class Sphinx extends Controller {
 			$p->load_dictionary("{$this->VARPath}/sphinx.psdic");
 
 			foreach ($idxs as $idx) {
-				`{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idx --buildstops {$this->IDXPath}/$idx.words 100000`;
+				if (!SapphireTest::is_running_test())
+					`{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idx --buildstops {$this->IDXPath}/$idx.words 100000`;
 				$p->load_wordfile("{$this->IDXPath}/$idx.words");
 			}
 

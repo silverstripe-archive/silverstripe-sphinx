@@ -21,11 +21,10 @@ class SphinxIndexingTest extends SapphireTest {
 		if (self::$sphinx) return;
 
 //		Sphinx::set_test_mode(true);
-
 		self::$sphinx = new Sphinx();
 		self::$sphinx->setClientClass("SphinxClientFaker", $this);
 		self::$sphinx->configure();
-		self::$sphinx->reindex(); // required to teest xmlpipe xml-generation
+		self::$sphinx->reindex(); // required to test xmlpipe xml-generation
 	}
 
 	/**
