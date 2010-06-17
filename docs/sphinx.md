@@ -438,16 +438,24 @@ The first thing to do is issue the command:
 
 More tests will be added over time.
 
-# Is the Sphinx configuration file being Created?
+## Is the Sphinx configuration file being Created?
 
 * Check permissions
 
-# Can the Indexer Build all the Indices?
+## Can the Indexer Build all the Indices?
 
 * Error is 'No local indices'
 * Check that the class being searched actually have indices
 * Check the sphinx.conf to ensure config for that class is correct.
 * Use 'indexer' on the config file to see if there are errors.
+
+## Is Temp Directory Path Short Enough
+
+When using sockets to connect to the sphinx daemon, the temp path is used as
+part of the connection string. There is a limit of 128 characters on this
+string, so the temp folder path name can't be too long. This is typically
+OK on unix-based systens (e.g,. debian), but is sometimes an issue on OSX
+installs due to the long default temp path.
 
 ## Errors
 
