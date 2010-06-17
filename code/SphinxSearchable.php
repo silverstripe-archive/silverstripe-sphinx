@@ -317,10 +317,16 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'SSDatetime':
 				case 'SS_Datetime':
 					$db = DB::getConn();
-					if ($db instanceof MySQLDatabase) $select[$name] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt})";
-					else if ($db instanceof PostgreSQLDatabase) $select[$name] = "date_part('epoch', \"timestamp\"({$bt}$class{$bt}.{$bt}$name{$bt}))";
-					else if ($db instanceof SQLite3Database) $select[$name] = "strftime(\"%s\", {$bt}$class{$bt}.{$bt}$name{$bt})";
-					else user_error("Sphinx module does not currently support timestamps for this database platform");
+					if ($db instanceof MySQLDatabase)
+						$select[$name] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt})";
+					else if ($db instanceof PostgreSQLDatabase)
+						$select[$name] = "date_part('epoch', \"timestamp\"({$bt}$class{$bt}.{$bt}$name{$bt}))";
+					else if ($db instanceof SQLite3Database || $db instanceof SQLitePDODatabase)
+						$select[$name] = "strftime(\"%s\", {$bt}$class{$bt}.{$bt}$name{$bt})";
+					else if ($db instanceof MSSQLDatabase || $db instanceof MSSQLAzureDatabase)
+						$select[$name] = "DATEDIFF(s, '19700101', GETDATE())";
+					else
+						user_error("Sphinx module does not currently support timestamps for this database platform");
 					if ($filter) $attributes[$name] = "timestamp";
 					break;
 
