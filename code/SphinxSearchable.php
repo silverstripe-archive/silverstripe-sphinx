@@ -14,18 +14,21 @@ class SphinxSearchable extends DataObjectDecorator {
 	/**
 	 * Determines when indexes are updated. Possible values are:
 	 *   - "endrequest"	- (default) Reindexing is done only once at the end of
-	 *					the PHP request, and only if a write() or delete()
-	 *					have been done (any op which flags the record dirty).
-	 *					This eliminates unnecessary reindexing when decorators
-	 *					perform additional writes on a data object.
-	 *					If the messagequeue module is installed and
-	 *					$reindex_queue is specified, a message is sent to
-	 *					do the refresh to keep it out of the user process.
-	 *					Otherwise it done in this process but at the end of
-	 *					the PHP request (this will be noticable to the user)
+	 *						the PHP request, and only if a write() or delete()
+	 *						have been done (any op which flags the record dirty).
+	 *						This eliminates unnecessary reindexing when decorators
+	 *						perform additional writes on a data object.
+	 *						If the messagequeue module is installed and
+	 *						$reindex_queue is specified, a message is sent to
+	 *						do the refresh to keep it out of the user process.
+	 *						Otherwise it done in this process but at the end of
+	 *						the PHP request (this will be noticable to the user)
 	 *   - "write"		-	(old behaviour) Reindexing is done on write or delete.
-	 *   - "disabled"	-	Reindexing is disabled, which is useful when writing many SphinxSearchable items (such as during a migration import)
-	 *						where the burden of keeping the Sphinx index updated in realtime is both unneccesary and prohibitive.
+	 *   - "disabled"	-	Reindexing is disabled, which is useful when writing
+	 *						many SphinxSearchable items (such as during a	
+	 *						migration import) where the burden of keeping the
+	 *						Sphinx index updated in realtime is both unneccesary
+	 *						and prohibitive.
 	 * @var unknown_type
 	 */
 	static $reindex_mode = "endrequest";
@@ -53,32 +56,18 @@ class SphinxSearchable extends DataObjectDecorator {
 	}
 
 	/**
-	 * When $reindex_mode is "endrequest", we build a list of deltas that require re-indexing when the request is shutdown.
+	 * When $reindex_mode is "endrequest", we build a list of deltas that
+	 * require re-indexing when the request is shutdown.
 	 * @var unknown_type
 	 */
 	static $reindex_deltas = array();
 
 	/**
-	 * When $reindex_mode is "endrequest", flags if we have registered the shutdown handler. Only want it once.
+	 * When $reindex_mode is "endrequest", flags if we have registered the
+	 * shutdown handler. Only want it once.
 	 * @var unknown_type
 	 */
 	static $reindex_on_shutdown_flagged = false;
-
-	/**
-	 * When writing many SphinxSearchable items (such as during a migration import) the burden of keeping the Sphinx index updated in realtime is
-	 * both unneccesary and prohibitive. You can temporarily disable indexed, and enable it again after the bulk write, using these two functions
-	 */
-	
-//	static $reindex_on_write = true;
-//	static function disable_indexing() {
-//		self::$reindex_on_write = false;
-//	}
-	
-//	static function reenable_indexing() {
-//		self::$reindex_on_write = true;
-//		// We haven't been tracking dirty writes, so the only way to ensure the results are up to date is a full reindex
-//		singleton('Sphinx')->reindex();
-//	}
 
 	/**
 	 * Returns a list of all classes that are SphinxSearchable
@@ -122,8 +111,10 @@ class SphinxSearchable extends DataObjectDecorator {
 	}
 
 	/**
-	 * Find the 'Base ID' for this DataObject. The base id is a numeric ID that is unique to the group of DataObject classes that share a common base class (the
-	 * class that immediately inherits from DataObject). This is used often in SphinxSearch as part of the globally unique document ID
+	 * Find the 'Base ID' for this DataObject. The base id is a numeric ID that
+	 * is unique to the group of DataObject classes that share a common base
+	 * class (the class that immediately inherits from DataObject). This is used
+	 * often in SphinxSearch as part of the globally unique document ID
 	 */
 	function sphinxBaseID() {
 		return SphinxSearch::unsignedcrc(ClassInfo::baseDataClass($this->owner->class));
@@ -198,7 +189,7 @@ class SphinxSearchable extends DataObjectDecorator {
 		}
 	}
 	
-	/*
+	/**
 	 * INTROSPECTION FUNCTIONS
 	 * 
 	 * Helper functions to allow SphinxSearch to introspect a DataObject to get the fields it should inject into sphinx.conf
