@@ -69,6 +69,24 @@ class SphinxIndexingTest extends SapphireTest {
 		$this->assertTrue(`grep "source SphinxTestBaseLiveDeltaSrc : BaseSrc" "$conf"` != "", "Config file has SphinxTestBase delta live index");
 	}
 
+	// Test CRC32 generation. For SQL-server, top bit is stripped. Checks
+	// crcs for names that have high bit set and cleared.
+	function testCRC32() {
+		// low bit clear, same crc on any db
+		$this->assertEquals(SphinxSearch::unsignedcrc("Test"), "2018365746",
+			"Check CRC for class name with low bit clear");
+		$db = DB::getConn();
+		if ($db instanceof MSSQLDatabase ||
+			$db instanceof MSSQLAzureDatabase)
+			$this->assertEquals(SphinxSearch::unsignedcrc("Foo"), "876487617",
+				"Check CRC for class name with high bit set, MSSQL");
+		else
+			$this->assertEquals(
+				SphinxSearch::unsignedcrc("Foo"), "3023971265",
+				"Check CRC for class name with high bit set, non-MSSQL"
+			);
+	}
+
 	function testSourceSQL() {
 		$this->onceOnly();
 

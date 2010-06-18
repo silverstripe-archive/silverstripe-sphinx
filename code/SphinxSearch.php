@@ -17,10 +17,17 @@ class SphinxSearch extends Object {
 	static $search_error_generates_user_error = true;
 	
 	/**
-	 * Get the CRC as a positive integer-string 
+	 * Get the CRC as a positive integer-string.
+	 * This is used as a proxy for class name in 64-bit document IDs.
+	 * If the database is MSSQL, this returns the equivalent of a 31-bit
+	 * CRC, because it doesn't support 64-bit unsigned.
 	 */
 	static function unsignedcrc($what) {
 		$val = crc32($what);
+
+		if (($db = DB::getConn()) instanceof MSSQLDatabase ||
+			 $db instanceof MSSQLAzureDatabase)
+			$val &= 0x7fffffff;
 		if (PHP_INT_SIZE>=8) $val = ($val<0) ? $val+(1<<32) : $val;
 		else                 $val = sprintf("%u", $val);
 		
