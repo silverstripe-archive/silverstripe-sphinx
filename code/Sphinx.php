@@ -266,7 +266,7 @@ class Sphinx extends Controller {
 		
 		SSViewer::set_source_file_comments(false);
 		$res = array();
-		
+
 		$res[] = $this->renderWith(Director::baseFolder() . '/sphinx/conf/source.ss');
 		$res[] = $this->renderWith(Director::baseFolder() . '/sphinx/conf/index.ss');
 			
@@ -278,6 +278,18 @@ class Sphinx extends Controller {
 		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
 		
 		file_put_contents("{$this->VARPath}/sphinx.conf", implode("\n", $res));
+	}
+
+	/**
+	 * Used by template for config to determine if the database credentials
+	 * should be written. Returns true if the database is supported natively by
+	 * sphinx, and at least one of the sources uses SQL-mode.
+	 */
+	function DatabaseConfigRequired() {
+		if (!$this->SupportedDatabase) return false;
+		foreach ($this->indexes() as $index)
+			if ($index->requiredDirectDBConnection()) return true;
+		return false;
 	}
 
 	/**
@@ -784,7 +796,20 @@ class Sphinx_Index extends ViewableData {
 			} 
 		}
 	}
-	
+
+	/**
+	 * Return true if any of the sources for this index require a direct
+	 * connection to the database inside sphinx. This can be used to determine
+	 * if the database connection properties are required in the config
+	 * file.
+	 */
+	function requiredDirectDBConnection() {
+		$required = false;
+		foreach ($this->Sources as $source)
+			if ($source instanceof Sphinx_Source_SQL) $required = true;
+		return $required;
+	}
+
 	function config() {
 		$out = array();
 		foreach ($this->Sources as $source) $out[] = $source->config();

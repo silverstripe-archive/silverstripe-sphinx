@@ -1,5 +1,5 @@
 source BaseSrc  {
-	<% if SupportedDatabase %>
+	<% if DatabaseConfigRequired %>
 	type = $Database.type
 	sql_host = $Database.server
 	sql_user = $Database.username
