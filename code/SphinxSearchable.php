@@ -317,7 +317,12 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'SSDatetime':
 				case 'SS_Datetime':
 					$db = DB::getConn();
-					if ($db instanceof MySQLDatabase)
+					if (method_exists($db, 'formattedDatetimeClause')) {
+						$select[$name] = $db->formattedDatetimeClause("{$bt}$class{$bt}.{$bt}$name{$bt}", '%U');
+					} else {
+						user_error("Sphinx module does not currently support timestamps for this database platform");
+					}
+/*					if ($db instanceof MySQLDatabase)
 						$select[$name] = "UNIX_TIMESTAMP({$bt}$class{$bt}.{$bt}$name{$bt})";
 					else if ($db instanceof PostgreSQLDatabase)
 						$select[$name] = "date_part('epoch', \"timestamp\"({$bt}$class{$bt}.{$bt}$name{$bt}))";
@@ -327,7 +332,7 @@ class SphinxSearchable extends DataObjectDecorator {
 						$select[$name] = "DATEDIFF(s, '19700101', GETDATE())";
 					else
 						user_error("Sphinx module does not currently support timestamps for this database platform");
-					if ($filter) $attributes[$name] = "timestamp";
+*/					if ($filter) $attributes[$name] = "timestamp";
 					break;
 
 				case 'ForeignKey':
