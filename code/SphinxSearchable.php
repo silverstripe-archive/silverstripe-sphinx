@@ -271,16 +271,22 @@ class SphinxSearchable extends DataObjectDecorator {
 		$classid = SphinxSearch::unsignedcrc($this->owner->class);
 		
 		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
-		
-		$select = array(
-			// Select the 64 bit combination baseid << 32 | itemid as the document ID
-			"id" => "($baseid<<32)|{$bt}$base{$bt}.{$bt}ID{$bt}", 
-			// And select each value individually for filtering and easy access 
-			"_id" => "{$bt}$base{$bt}.{$bt}ID{$bt}",
-			"_baseid" => $baseid,
-			"_classid" => $classid,
-			"_dirty" => "0"
-		);
+		$db = DB::getConn();
+	
+		$select = array();
+
+		// Select the 64 bit combination baseid << 32 | itemid as the document ID
+		if ($db instanceof MSSQLDatabase || $db instanceof MSSQLAzureDatabase)
+			$select["id"] = "($baseid * 4294967296) + {$bt}$base{$bt}.{$bt}ID{$bt}";
+		else
+			$select["id"] = "($baseid<<32)|{$bt}$base{$bt}.{$bt}ID{$bt}";
+
+		// And select each value individually for filtering and easy access 
+		$select["_id"] = "{$bt}$base{$bt}.{$bt}ID{$bt}";
+		$select["_baseid"] = $baseid;
+		$select["_classid"] = $classid;
+		$select["_dirty"] = "0";
+
 		$attributes = array(
 			"_id" => "uint",
 			"_baseid" => "uint",
@@ -290,7 +296,7 @@ class SphinxSearchable extends DataObjectDecorator {
 
 		foreach($this->sphinxFields($this->owner->class) as $name => $info) {
 			list($class, $type, $filter, $sortable, $stringType, $value) = $info;
-			
+
 			switch ($type) {
 				case 'Enum':
 				case 'Varchar':
@@ -316,7 +322,6 @@ class SphinxSearchable extends DataObjectDecorator {
 				case 'Date':
 				case 'SSDatetime':
 				case 'SS_Datetime':
-					$db = DB::getConn();
 					if (method_exists($db, 'formattedDatetimeClause')) {
 						$select[$name] = $db->formattedDatetimeClause("{$bt}$class{$bt}.{$bt}$name{$bt}", '%U');
 					} else {
