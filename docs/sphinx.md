@@ -120,7 +120,8 @@ indexing of a class.
 		"sort_fields" => array("Title"),
 		"extra_fields" => array("_contenttype" => "Page::getComputedValue"),
 		'filterable_many_many' => '*',
-		'extra_many_many' => array('documents' => 'select (1468840814<<32) | PageID AS id, DocumentID AS Documents FROM Page_Documents')
+		'extra_many_many' => array(
+			'documents' => 'select (' . SphinxSearch::unsignedcrc('SiteTree') . '<<32) | PageID AS id, DocumentID AS Documents FROM Page_Documents')
 		"mode" => "xmlpipe",
 		"external_content" => array("field" => array("myclass", "somefunc"))
 	);
@@ -165,7 +166,8 @@ This will mark the class and all sub-classes for indexing.
   the database server is not set to use ANSI compliant, because there is no way
   to control ansi-mode for the query that retrieves many-many data in sphinx (a
   bug in sphinx: http://www.sphinxsearch.com/bugs/view.php?id=394). This is not
-  an issue if mode is 'xmlpipe'.
+  an issue if mode is 'xmlpipe'. The example shows a MySQL expression (the shift
+  operator does not work with all database platforms).
 * mode - this determines the mode used by the sphinx indexer to retrieve data.
   One of the values:
   * 'sql' (default) - SQL statements are used. The statements are written to the
