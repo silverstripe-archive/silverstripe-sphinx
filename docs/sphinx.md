@@ -444,6 +444,26 @@ properly:
 * log
 * query_log
 
+## Index Options
+
+The sphinx module automatically generates index (and source) sections in the
+configuration. There are two types of index sections, each of which has the
+same setting options but are set differently.
+
+### Base Index Options
+
+The base index definition in sphinx.conf contains settings that are inherited
+by all other index definitions.
+
+Base index definitions can be set as follows:
+
+~~~ {php}
+	Sphinx::set_base_index_options(array(
+		"enable_star" => 1,
+		"min_prefix_len" => 3
+	));
+~~~
+
 # Known Issues
 
 ## Re-indexing Many-Many Relationships on Write
