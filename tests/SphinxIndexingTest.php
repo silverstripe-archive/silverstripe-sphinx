@@ -54,6 +54,13 @@ class SphinxIndexingTest extends SapphireTest {
 		// Check for basic existance of things in the config file
 		$this->assertTrue(`grep "source BaseSrc" "$conf"` != "", "Config file has base source");
 		$this->assertTrue(`grep "index BaseIdx" "$conf"` != "", "Config file has base index");
+
+		// Check for defaults for indexer and searchd
+		$this->assertTrue(`grep "^indexer [{]\$" "$conf"` != "", "Config file has indexer statement");
+		$this->assertTrue(`grep "^searchd [{]\$" "$conf"` != "", "Config file has indexer statement");
+		$this->assertTrue(`grep "^\tmax_children = 30$" "$conf"` != "", "Config file has max_children");
+		$this->assertTrue(`grep "^\tlog = .*" "$conf"` != "", "Config file has log");
+		$this->assertTrue(`grep "^\tmem_limit = .*" "$conf"` != "", "Config file has mem limit clause");
 	}
 
 	// A few checks that we see variant info that we expect to see.
