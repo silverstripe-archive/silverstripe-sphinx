@@ -312,8 +312,11 @@ class Sphinx extends Controller {
 		SSViewer::set_source_file_comments(false);
 		$res = array();
 
+		// base source
 		$res[] = $this->renderWith(Director::baseFolder() . '/sphinx/conf/source.ss');
-		$res[] = $this->renderWith(Director::baseFolder() . '/sphinx/conf/index.ss');
+
+		// base index
+		$this->addBaseIndexConfig(&$res);
 
 		foreach ($this->indexes() as $index) $res[] = $index->config();
 
@@ -352,6 +355,50 @@ class Sphinx extends Controller {
 		foreach ($this->indexes() as $index)
 			if ($index->requiredDirectDBConnection()) return true;
 		return false;
+	}
+
+	/**
+	 * Add lines the configuration array $res for the contents of the
+	 * base index. This comes from defaults for the base index, with overrides.
+	 * This is rendered by template, which contains the default charset_table
+	 * if none is set. All other properties are rendered using the template
+	 * engine, which gets the props out of the base_index_options static.
+	 * $this->CharsetTable and $this->BaseIndexOptions are set here for
+	 * rendering use only.
+	 */
+	protected function addBaseIndexConfig(&$res) {
+		$this->CharsetTable = null;
+		$this->BaseIndexOptions = new DataObjectSet();
+		$ar = array();
+		foreach (self::$base_index_options as $key => $value) {
+			if ($key == "charset_table") $this->CharsetTable = $value;
+			else if ($key == "stopwords") $this->StopWords = $value;
+			else $this->BaseIndexOptions->push(new ArrayData(array("Key" => $key, "Value" => $value)));
+		}
+
+		$res[] = $this->renderWith(Director::baseFolder() . '/sphinx/conf/index.ss');
+	}
+
+	/**
+	 * Default settings for the base index. charset_type,
+	 * charset_table and stopwords are handled separately.
+	 */
+	protected static $base_index_options = array(
+		"morphology" => "stem_en",
+		"phrase_boundary" => "., ?, !, U+2026 # horizontal ellipsis",
+		"html_strip" => 1,
+		"html_index_attrs" => "img=alt,title; a=title;",
+		"inplace_enable" => 1,
+		"index_exact_words" => 1,
+		"charset_type" => "utf-8"
+	);
+
+	static function set_base_index_options($options) {
+		self::$base_index_options = array_merge(self::$base_index_options, $options);
+	}
+
+	static function get_base_index_options() {
+		return self::$base_index_options;
 	}
 
 	/**

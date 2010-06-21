@@ -1,16 +1,12 @@
 index BaseIdx {
 	# source = BaseSrc
 	# path = $IDXPath/Base
-
-	# builtin preprocessors are 'none', 'stem_en', 'stem_ru', 'stem_enru',
-	# 'soundex', and 'metaphone'; additional preprocessors available from
-	# libstemmer are 'libstemmer_XXX', where XXX is algorithm code
-	# (see libstemmer_c/libstemmer/modules.txt)
-	morphology = stem_en
-
+<% control BaseIndexOptions %>
+	$Key = $Value<% end_control %>
 	<% if StopWords %>stopwords = $StopWords<% end_if %>
-
-	charset_type = utf-8
+<% if CharsetTable %>
+	charset_table = $CharsetTable
+<% else %>
 	charset_table = \
 		U+00C0->a, U+00C1->a, U+00C2->a, U+00C3->a, U+00C4->a, U+00C5->a, U+00E0->a, U+00E1->a, U+00E2->a, U+00E3->a, U+00E4->a, U+00E5->a, U+0100->a, U+0101->a, U+0102->a, U+0103->a, U+010300->a, U+0104->a, U+0105->a, U+01CD->a, U+01CE->a, U+01DE->a, U+01DF->a,  \
 		U+01E0->a, U+01E1->a, U+01FA->a, U+01FB->a, U+0200->a, U+0201->a, U+0202->a, U+0203->a, U+0226->a, U+0227->a, U+023A->a, U+0250->a, U+04D0->a, U+04D1->a, U+1D2C->a, U+1D43->a, U+1D44->a, U+1D8F->a, U+1E00->a, U+1E01->a, U+1E9A->a, U+1EA0->a, U+1EA1->a,  \
@@ -200,12 +196,5 @@ index BaseIdx {
 		U+0CAA..U+0CB3, U+0CB5..U+0CB9, U+0CE0, U+0CE1, U+0CE6..U+0CEF, U+1900..U+191C, U+1930..U+1938, U+1946..U+194F, U+0D05..U+0D0C, U+0D0E..U+0D10, U+0D12..U+0D28, U+0D2A..U+0D39, U+0D60, U+0D61, U+0D66..U+0D6F, U+0B94->U+0B92, U+0B85..U+0B8A, U+0B8E..U+0B90,  \
 		U+0B92, U+0B93, U+0B95, U+0B99, U+0B9A, U+0B9C, U+0B9E, U+0B9F, U+0BA3, U+0BA4, U+0BA8..U+0BAA, U+0BAE..U+0BB9, U+0BE6..U+0BEF, U+0E01..U+0E30, U+0E32, U+0E33, U+0E40..U+0E46, U+0E50..U+0E5B, U+FF10..U+FF19->0..9, U+FF21..U+FF3A->a..z, U+FF41..U+FF5A->a..z,  \
 		0..9, A..Z->a..z, a..z	
-
-	phrase_boundary = ., ?, !, U+2026 # horizontal ellipsis
-
-	html_strip = 1
-	html_index_attrs = img=alt,title; a=title;
-
-	inplace_enable			= 1
-	index_exact_words		= 1
+<% end_if %>
 }
