@@ -405,7 +405,44 @@ the CRC of the ClassName are available in the attributes _id, _baseid and
 _classid respectively. These are useful to avoid having to do 64 bit math, and
 for class-specific filtering, such as is needed by SphinxVariants_Subsite to
 filter differently depending on the class
- 
+
+# Advanced Configuration
+
+By default, the sphinx module will generate sensible default values in
+sphinx.conf.  You can, however, override these. It is recommended that you
+read the sphinx documentation and sphinx module code to ensure you understand
+the effects of overriding values.
+
+## Indexer Options
+
+Indexer options can be overridden as follows in your mysite/_config.php:
+
+~~~ {php}
+	Sphinx::set_indexer_options(array(
+		"mem_limit" => "512M",
+		"write_buffer" => "4M"
+	));
+~~~
+
+## `searchd` Options
+
+searchd options can be overridden as follows in your mysite/_config.php:
+
+~~~ {php}
+	Sphinx::set_searchd_options(array(
+		"max_children" => 10
+	));
+~~~
+
+Warning: the following searchd options are typically dynamically calculated
+by the sphinx module, but you can override with the above function. Only do this
+if you understand what you are doing, otherwise sphinx module may not function
+properly:
+
+* listen
+* pid_file
+* log
+* query_log
 
 # Known Issues
 
