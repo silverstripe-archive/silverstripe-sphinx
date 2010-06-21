@@ -35,7 +35,52 @@ class Sphinx extends Controller {
 
 	/** What stop words list to use. null => default list. array('word1','word2') => those words. path as string => that file of words. false => no stopwords list */
 	static $stop_words = null;
-	
+
+	// Default options for indexer app
+	protected static $indexer_options = array(
+		"mem_limit" => "256M"
+	);
+
+	/**
+	 * Setter for indexer options. This is merged with (and overrides)
+	 * the defaults.
+     */ 
+	static function set_indexer_options($options) {
+		self::$indexer_options = array_merge(self::$indexer_options, $options);
+	}
+
+	/**
+	 * Get the indexer options currently in effect
+	 */
+	static function get_indexer_options($options) {
+		return self::$indexer_options;
+	}
+
+	/**
+	 * Default settings for searchd.
+	 */
+	protected static $searchd_options = array(
+		"max_children" => "30"
+	);
+
+	/**
+	 * Sets options for searchd, which get written to the sphinx configuration
+	 * file. If the following properties are provided, they override
+	 * what sphinx generates (so only set these if you really know what
+	 * you're doing):
+	 *  - listen
+	 *  - pid
+	 *  - log
+	 *  - query_log
+	 */
+	static function set_searchd_options($options) {
+		self::$searchd_options = array_merge(self::$searchd_options, $options);
+	}
+
+	static function get_searchd_options() {
+		return self::$searchd_options;
+	}
+
 	/** Generate configuration from either static variables or default values, and preps $this to contain configuration values, to be used in templates */
 	function __construct() {
 		global $databaseConfig;
@@ -269,11 +314,28 @@ class Sphinx extends Controller {
 
 		$res[] = $this->renderWith(Director::baseFolder() . '/sphinx/conf/source.ss');
 		$res[] = $this->renderWith(Director::baseFolder() . '/sphinx/conf/index.ss');
-			
+
 		foreach ($this->indexes() as $index) $res[] = $index->config();
-		
-		$res[] = $this->renderWith(Director::baseFolder() . '/sphinx/conf/apps.ss');
-		
+
+		// Add the indexer options
+		$res[] = "indexer {";
+		foreach (self::$indexer_options as $key => $value) $res[] = "\t$key = $value";
+		$res[] = "}\n";
+
+		// Add the searchd options. We need to set some dynamic properties
+		// if not overridden.
+		$res[] = "searchd {";
+		if (!isset(self::$searchd_options["listen"]))
+			self::$searchd_options["listen"] = $this->Listen;
+		if (!isset(self::$searchd_options["pid_file"]))
+			self::$searchd_options["pid_file"] = $this->PIDFile;
+		if (!isset(self::$searchd_options["log"]))
+			self::$searchd_options["log"] = $this->VARPath . "/searchd.log";
+		if (!isset(self::$searchd_options["query_log"]))
+			self::$searchd_options["query_log"] = $this->VARPath . "/query.log";
+		foreach (self::$searchd_options as $key => $value) $res[] = "\t$key = $value";
+		$res[] = "}";
+
 		if (!file_exists($this->VARPath)) mkdir($this->VARPath, 0770);
 		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
 		
