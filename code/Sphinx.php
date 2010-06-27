@@ -19,9 +19,23 @@ class Sphinx extends Controller {
 		'diagnose'
 	);
 	
-	/** Directory that the sphinx binaries (searchd, indexer, etc.) are in. Add override to mysite/_config.php if they are in a custom location */
+	/** Assoc array mapping sphinx binary name to full path to the binary,
+	  * calcualted in constructor.
+	  */
+	protected $BINPath = array(); // key: binary's name; value: path to binary
+	
+	/** Directory or :-separated directories that the sphinx binaries (searchd, indexer, etc.) are in. Add override to mysite/_config.php if they are in a custom location */
 	static $binary_location = '';
 	
+	/** Names of the sphinx binaries we care about */
+    static $binaries = array( 'indexer', 'searchd', 'search' );
+    
+    /** Common paths under Linux & FreeBSD */
+	const USUAL_PATHS = '/usr/bin:/usr/local/bin:/opt/local/bin';
+	
+	/** Paths we searched to find binaries, for diagnostics */
+	private $_diagnostic_paths = array();
+    
 	/** Override where the indexes and other run-time data is stored. By default, uses subfolders of TEMP_FOLDER/sphinx (normally /tmp/silverstripe-cache-sitepath/sphinx) */
 	static $var_path = null;
 	static $idx_path = null;
@@ -128,12 +142,27 @@ class Sphinx extends Controller {
 		$port = defined('SS_SPHINX_TCP_PORT') ? SS_SPHINX_TCP_PORT : self::$tcp_port;
 		$this->Listen = $port ? "127.0.0.1:$port" : "{$this->VARPath}/searchd.sock";
 		
-		// Binary path
-		if     (defined('SS_SPHINX_BINARY_LOCATION'))  $this->BINPath = SS_SPHINX_BINARY_LOCATION;       // By constant from _ss_environment.php
-		elseif ($this->stat('binary_location'))        $this->BINPath =  $this->stat('binary_location'); // By static from _config.php
-		elseif (file_exists('/usr/bin/indexer'))       $this->BINPath = '/usr/bin';                      // By searching common directories
-		elseif (file_exists('/usr/local/bin/indexer')) $this->BINPath = '/usr/local/bin';
-		else                                           $this->BINPath = '.';                             // Hope it's in path
+		// Work out where the binaries are.
+		$this->BINPath = array();
+		$paths = array();
+		if ($this->stat('binary_location'))
+			$paths = explode( ':', $this->stat('binary_location')); // By static from _config.php
+		elseif (defined('SS_SPHINX_BINARY_LOCATION'))
+			$paths = explode( ':', SS_SPHINX_BINARY_LOCATION );     // By constant from _ss_environment.php
+		$paths = array_merge( $paths, explode( ':', self::USUAL_PATHS ) );
+		$this->_diagnostic_paths = $paths;
+		
+		// Find all the binary paths and populate BINPath
+		foreach ( $this->stat('binaries') as $file ) {
+			$this->BINPath[$file] = false;
+		    foreach ( $paths as $path ) {
+		    	$abs_path =  $path . '/' . $file;
+		        if ( file_exists($abs_path) ) {
+		            $this->BINPath[$file] = $abs_path;
+		            break;
+		        }
+		    }
+		}
 		
 		// An array that maps class names to arrays of Sphinx_Index objects.
 		$this->indexes = array();
@@ -169,7 +198,7 @@ class Sphinx extends Controller {
 	
 	/** Accessor to get the location of a sphinx binary */
 	function bin($prog='') {
-		return ( $this->BINPath ? $this->BINPath . '/' : '' ) . $prog;
+		return ( $this->BINPath[$prog] ? $this->BINPath[$prog] : $prog );
 	}
 	
 	/**
@@ -617,12 +646,18 @@ class Sphinx extends Controller {
 		//		$this->PIDFile = self::$pid_file ? self::$pid_file : $this->VARPath . '/searchd.pid';
 
 		// Check if the sphinx binaries are present on the host
-		$notices[] = "Sphinx binary location: " . $this->BINPath;
-		foreach (array("indexer", "searchd", "search") as $file) if (!file_exists($this->BINPath . "/$file")) $errors[] = array(
-																		"message" => "Cannot find the sphinx '$file' binary",
-																		"solutions" => array(
-																			"Ensure that sphinx binaries are installed in $this->BINPath"
-																		));
+        $notices[] = "Sphinx binary locations: " . implode( ', ', array_values( $this->BINPath ) );
+		foreach ( $this->stat('binaries') as $file ) {
+			if ( !$this->BINPath[$file] ) {
+				$errors[] = array(
+					"message"	=> "Cannot find the sphinx '$file' binary",
+					"solutions" => array(
+						"Ensure that sphinx binaries are installed as appropriate in these directories: "
+							. implode( ', ', $this->_diagnostic_paths )
+					)
+				);
+			}
+		}
 
 		// Check if file extraction programs are present. Warnings only. Should only test if there are classes
 		// decorated with the file extractor.
