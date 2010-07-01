@@ -31,7 +31,7 @@ class Sphinx extends Controller {
     static $binaries = array( 'indexer', 'searchd', 'search' );
     
     /** Common paths under Linux & FreeBSD */
-	const USUAL_PATHS = '/usr/bin:/usr/local/bin:/opt/local/bin';
+	const USUAL_PATHS = '/usr/bin:/usr/local/bin:/usr/local/sbin:/opt/local/bin';
 	
 	/** Paths we searched to find binaries, for diagnostics */
 	private $_diagnostic_paths = array();
