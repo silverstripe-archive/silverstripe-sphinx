@@ -457,8 +457,12 @@ class Sphinx extends Controller {
 		if (!SapphireTest::is_running_test())
 			$indexingOutput = `{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
 
-		// We can't seem to be able to rely on exit status code, so we have to do this
-		if(!preg_match("/\nERROR:/", $indexingOutput)) {
+		// We can't seem to be able to rely on exit status code, so we have to
+		// detect error conditions the hard way.
+		$hasError = preg_match("/\nERROR:/", $indexingOutput) ||
+					preg_match("/Segmentation fault/", $indexingOutput);
+
+		if(!$hasError) {
 			// Generate word lists
 			$p = new PureSpell();
 			$p->load_dictionary("{$this->VARPath}/sphinx.psdic");
