@@ -74,7 +74,11 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * @return array[string]
 	 */
 	static function decorated_classes() {
-		return array_filter(ClassInfo::subclassesFor('DataObject'), create_function('$class', 'return Object::has_extension($class, "SphinxSearchable");'));
+		$result = array();
+		foreach (ClassInfo::subclassesFor('DataObject') as $class) {
+			if (Object::has_extension($class, "SphinxSearchable")) $result[] = $class;
+		}
+		return $result;
 	}
 	
 	/**
