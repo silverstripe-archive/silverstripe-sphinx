@@ -282,6 +282,8 @@ class SphinxSearchable extends DataObjectDecorator {
 		// Select the 64 bit combination baseid << 32 | itemid as the document ID
 		if ($db instanceof MSSQLDatabase || $db instanceof MSSQLAzureDatabase)
 			$select["id"] = "($baseid * 4294967296) + {$bt}$base{$bt}.{$bt}ID{$bt}";
+		else if ($db instanceof PostgreSQLDatabase)
+			$select["id"] = "(cast($baseid as bigint) <<32)|{$bt}$base{$bt}.{$bt}ID{$bt}";
 		else
 			$select["id"] = "($baseid<<32)|{$bt}$base{$bt}.{$bt}ID{$bt}";
 
