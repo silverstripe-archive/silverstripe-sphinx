@@ -486,11 +486,16 @@ class Sphinx extends Controller {
 	
 	/**
 	 * Check the status of searchd.
-	 * @return string - 'Running', 'Stopped - Stale PID' or 'Stopped'
+	 * @return string - One of:
+	 *		- 'Running'
+	 *		- 'Stopped - Stale PID'
+	 *		- 'Stopped - no PID'
+	 *		- 'Stopped'
 	 */
 	function status() {
 		if (file_exists($this->PIDFile)) {
-			$pid = trim(file_get_contents($this->PIDFile));
+			$pid = (int) trim(file_get_contents($this->PIDFile));
+			if (!$pid) return 'Stopped - No PID';
 			if (preg_match("/(^|\\s)$pid\\s/m", `ps ax`)) return 'Running';
 			return 'Stopped - Stale PID';
 		}
