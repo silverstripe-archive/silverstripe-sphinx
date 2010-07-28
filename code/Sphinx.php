@@ -906,7 +906,7 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 	 * @return String
 	 */
 	function cleanForXML($val) {
-		$val = preg_replace("/[^\x9\xA\xD\x20-\x7F]/", "", $val);	// ascii chars
+		$val = preg_replace("/[\x01-\x08\x0B\x0C\x0E-\x1F]/", "", $val);
 		$val = preg_replace("/\]\]\>/", "", $val);					// no ]]>
 		$val = strip_tags($val);									// no html elements
 		return $val;
