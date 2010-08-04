@@ -457,12 +457,12 @@ class Sphinx extends Controller {
 		if (!SapphireTest::is_running_test())
 			$indexingOutput = `{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
 
-		// We can't seem to be able to rely on exit status code, so we have to
-		// detect error conditions the hard way.
-		$hasError = preg_match("/\nERROR:/", $indexingOutput) ||
-					preg_match("/Segmentation fault/", $indexingOutput);
-
-		if(!$hasError) {
+		if ($this->detectIndexingError($indexingOutput)) {
+			if($this->response) $this->response->addHeader("Content-type", "text/plain");
+			return "ERROR\n\n$indexingOutput";
+		}
+		else
+		{
 			// Generate word lists
 			$p = new PureSpell();
 			$p->load_dictionary("{$this->VARPath}/sphinx.psdic");
@@ -474,16 +474,37 @@ class Sphinx extends Controller {
 			}
 
 			$p->save_dictionary("{$this->VARPath}/sphinx.psdic");
-	
+
 			if($this->response) $this->response->addHeader("Content-type", "text/plain");
 			return "OK";
-
-		} else {
-			if($this->response) $this->response->addHeader("Content-type", "text/plain");
-			return "ERROR\n\n$indexingOutput";
 		}
 	}
-	
+
+	/**
+	 * Examine $s for signs of indexing error. This is abstracted to a function so it can be unit tested.
+	 * Detect indexing errors. An error is deemed to occur if any of the following occur in the indexing output:
+	 *   ERROR:
+	 *   FATAL:
+	 *   WARNING:
+	 *   Segmentation fault
+	 * but this is ignored as it usually occurs and is innocuous:
+	 *   ERROR: index 'BaseIdx': key 'path' not found.
+	 *
+	 * @return Boolean True if this has errors, false if it's OK.
+	 */
+	function detectIndexingError($s) {
+		$lines = explode("\n", $s);
+		$hasError = false;
+		foreach ($lines as $line) {
+			$hasError |= (preg_match("/^ERROR\:.*$/", $line) > 0 && $line != "ERROR: index 'BaseIdx': key 'path' not found.");
+			$hasError |= (preg_match("/^FATAL\:/", $line) > 0);
+			$hasError |= (preg_match("/^WARNING:/", $line) > 0);
+			$hasError |= (preg_match("/Segmentation fault/", $line) > 0);
+		}
+
+		return $hasError ? TRUE : FALSE;
+	}
+
 	/**
 	 * Check the status of searchd.
 	 * @return string - One of:
