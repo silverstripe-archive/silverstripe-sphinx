@@ -219,6 +219,18 @@ class SphinxIndexingTest extends SapphireTest {
 		}
 	}
 
+	function testIndexingErrorDetection() {
+		$this->onceOnly();
+		$sphinx = self::$sphinx;
+
+//		$this->assertTrue($sphinx->detectIndexingError("xyz\nERROR: something") === TRUE, "General error reported as error");
+		$this->assertTrue($sphinx->detectIndexingError("xyz\nFATAL: something") === TRUE, "Fatal error reported as error");
+		$this->assertTrue($sphinx->detectIndexingError("xyz\nWARNING: something") === TRUE, "Warning reported as error");
+		$this->assertTrue($sphinx->detectIndexingError("xyz\nSegmentation fault test") === TRUE, "Segmentation fault reported as error");
+		$this->assertTrue($sphinx->detectIndexingError("xyz\nERROR: index 'BaseIdx': key 'path' not found.") === FALSE, "Base index error reported as not-error");
+		$this->assertTrue($sphinx->detectIndexingError("xyz\nThis has no problem") === FALSE, "No error is reported as not-error");
+	}
+
 	/**
 	 * Return a section from the sphinx config file. Returns array of arrays of $key=$value assignments from the section. The same key
 	 * can occur more than once, hence the double array
