@@ -457,12 +457,53 @@ by all other index definitions.
 
 Base index definitions can be set as follows:
 
-~~~ {php}
 	Sphinx::set_base_index_options(array(
 		"enable_star" => 1,
 		"min_prefix_len" => 3
 	));
-~~~
+
+
+# Unit Test Behaviour and Features
+
+Unit tests for sphinx are written to use a fake sphinx client, so that automated testing environments don't require
+a full set up of the sphinx module. When you are writing unit tests for your own code that makes calls to Sphinx::search,
+you can get the fake client to return objects from your test's fixture.
+
+To enable this feature, you need to tell Sphinx to use the fake client, and tell it your test instance so it can
+retrieve objects from the fixture:
+
+	// Grab a singleton instance of the sphinx controller, and tell it to use the fake client with this
+	// test instance.
+	static $sphinx = null;
+	function setUpOnce() {
+		self::$sphinx = new Sphinx();
+		self::$sphinx->setClientClass("SphinxClientFaker", $this);
+	}
+
+Within your test, you can call SphinxSearch::search with specially formatted query text. There are two formats you can
+use:
+
+* class:(id,id,id...)	returns specifically identified objects from the fixture file.
+* class:cond			returns objects using DataObject::get.
+
+Example 1:
+
+To get sphinx to return two page objects that are identified in the fixture as 'page1' and 'page2':
+
+	$results = SphinxSearch::search(array('Page'),
+								"Page:(page1,page2)",
+								array('suggestions' => false, 'page' => 0, 'pagesize' => 5);
+
+Example 2:
+
+To get sphinx to return all pages where the Title starts with 'Test':
+
+	$results = SphinxSearch::search(array('Page'),
+								"Page:\"Title\" like 'Test%'",
+								array('suggestions' => false, 'page' => 0, 'pagesize' => 5);
+
+
+Note: It is recommended to set the suggestions option to false. Having suggestions enabled may cause errors.
 
 # Known Issues
 
