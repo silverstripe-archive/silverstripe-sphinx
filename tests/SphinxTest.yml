@@ -60,3 +60,10 @@ SphinxTestXMLPiped:
 		StringPropX: joe
 		FilterPropX: 100002
 		NonFilterPropX: 100003
+Page:
+    page1:
+        Title: Test1
+    page2:
+        Title: Test2
+    page3:
+        Title: Test3

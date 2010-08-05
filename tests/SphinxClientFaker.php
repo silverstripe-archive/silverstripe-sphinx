@@ -35,7 +35,6 @@ class SphinxClientFaker implements TestOnly {
 		$results = array();
 
 		$data = $this->getData($qry);
-//Debug::log("start is $this->start and pagesize is $this->pagesize");
 
 		$results['matches'] = array();
 
@@ -49,7 +48,7 @@ class SphinxClientFaker implements TestOnly {
 
 		$results['total'] = count($data);
 		$results['total_found'] = count($data);
-//		Debug::log("fake query results are " . print_r($results, true));
+
 		return $results;
 	}
 
@@ -69,11 +68,21 @@ class SphinxClientFaker implements TestOnly {
 
 	/**
 	 * Return a fake dataset based on what mode we are testing.
+	 * The particular set of results is determined by $qry, and there are two sets of values:
+	 * - for sphinx internal unit tests, it understands "basic", "sort1", "sort2" and "sort3", which return
+	 *   specific sets of values that are present in the test yaml file.
+	 * - for unit tests that are external to the module, it understands a more complex format for specifying
+	 *   objects, of the form "class:filter" or "class:(items)"
+	 *   e.g. if the query is Page::\"Property\"='xyz', it effectively returns DataObject::get("Page", \"Property\"='xyz').
+	 *   if query is Page::(page1,page2,page4), it will return the named objects from the yaml file, of the given type.
 	 * @param $qry
 	 * @return unknown_type
 	 */
 	private function getData($qry) {
 		$result = array();
+
+		if (strpos($qry, ":") !== FALSE) return $this->getDataByQuery($qry);
+
 		switch ($qry) {
 			case "basic":
 				// Just return something
@@ -122,6 +131,33 @@ class SphinxClientFaker implements TestOnly {
 				break;
 		}
 		return $result;
+	}
+
+	private function getDataByQuery($qry) {
+		$i = strpos($qry, ":");
+		$class = substr($qry, 0, $i);
+		$params = trim(substr($qry, $i+1));
+		if ($params[0] == "(") {
+			// expecting a list of identifiers
+			if ($params[strlen($params)-1] != ")") $params .= "(";
+			$params = substr($params, 1, strlen($params)-2);
+			$ids = explode(",", $params);
+			$objects = new DataObjectSet();
+			foreach ($ids as $id) $objects->push($this->testObject->getTestObject($class, $id));
+		}
+		else
+			$objects = DataObject::get($class, $params);
+
+		// Given the selected objects, build the fake result
+		$set = array();
+		if ($objects) foreach ($objects as $object) {
+			$info = array();
+			$info['attrs']['_id'] = $object->ID;
+			$info['attrs']['_classid'] = SphinxSearch::unsignedcrc($object->ClassName);
+			$bigid = SphinxSearch::combinedwords($info['attrs']['_classid'], $object->ID);
+			$set[$bigid] = $info;
+		}
+		return $set;
 	}
 
 	/**

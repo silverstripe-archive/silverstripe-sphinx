@@ -71,6 +71,30 @@ class SphinxSearchTest extends SapphireTest {
 	}
 
 	/**
+	 * A meta-test to check that the fake client querying mechanism works correctly, particularly the general format
+	 * for returning arbitrary objects from a fixture. This querying syntax is not used by sphinx unit tests directly,
+	 * but can be used by unit tests external to the module.
+	 *
+	 * @return void
+	 */
+	function testFakeClientQuerying() {
+		$this->onceOnly();
+
+		// Add sphinx extension to Page
+		Object::add_extension('Page', 'SphinxSearchable');
+
+		$res = SphinxSearch::search(array('Page'),
+								"Page:(page1,page2)",
+								array( 'require' => array(), 'suggestions' => false, 'page' => 0, 'pagesize' => 5, 'sortmode' => "fields", 'sortarg' => array("StringProp" => "asc")));
+		$this->assertEquals($res->Matches->Count(), 2, "Page:(id-list) fetch works");
+		$res = SphinxSearch::search(array('Page'),
+								"Page:\"Title\" like 'Test%'",
+								array( 'require' => array(), 'suggestions' => false, 'page' => 0, 'pagesize' => 5, 'sortmode' => "fields", 'sortarg' => array("StringProp" => "asc")));
+		$this->assertEquals($res->Matches->Count(), 3, "Page:cond fetch works");
+
+		Object::remove_extension('Page', 'SphinxSearchable');
+	}
+	/**
 	 * Check that a dataset with SphinxTestBase are in correct StringProp order.
 	 */
 	function inStringPropOrder($ds) {
