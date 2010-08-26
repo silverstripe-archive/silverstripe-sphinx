@@ -435,6 +435,7 @@ class Sphinx extends Controller {
 	 * @param $idxs array - A list of indexes to rebuild,
 	 *		or null to rebuild all indexes. Array items can be either index
 	 *		names as strings, or Sphinx_Index objects.
+	 * @todo Implement a verbose option for debugging that dumps all output irrespective. Detect http/command line, and formats appropriately.
 	 */
 	function reindex($idxs=null) {
 		// If we're being called as a controller, or we're called with no indexes specified, rebuild all indexes 
@@ -499,6 +500,7 @@ class Sphinx extends Controller {
 			$hasError |= (preg_match("/^ERROR\:.*$/", $line) > 0 && $line != "ERROR: index 'BaseIdx': key 'path' not found.");
 			$hasError |= (preg_match("/^FATAL\:/", $line) > 0);
 			$hasError |= (preg_match("/^WARNING:/", $line) > 0);
+			$hasError |= (preg_match("/Permission denied/", $line) > 0);
 			$hasError |= (preg_match("/Segmentation fault/", $line) > 0);
 		}
 
@@ -630,6 +632,14 @@ class Sphinx extends Controller {
 	 * Function to check for issues in the Sphinx environment, to make it easier to figure out if there are things
 	 * wrong. Displays a list of issues to the terminal, and also displays what Sphinx understands of what configuration
 	 * it has.
+	 * @todo Check that the same user runs apache, owns temp, runs daemon
+	 * @todo Check that sake is executable
+	 * @todo Check for corrupt sphinx.conf caused by "dev/build flush=all" on command line, which doesn't work (or avoid using template engine to generate sphinx.conf)
+	 * @todo Check that index files have been generated in the last 24 hours to detect cron failure
+	 * @todo Check that index files have been generated in the last 10 minutes to assist in development failures (i.e. tell the
+	 *      developer somethign is wrong. Should onbly be a notice.
+	 * @todo Possible action is to run reindexer manually, with verbose option.
+	 * @todo Format output nicely for both http and command line.
 	 * @return void
 	 */
 	function diagnose() {
@@ -728,7 +738,7 @@ class Sphinx extends Controller {
 
 		}
 
-		// Check permissions on sphnx files. Warning if they are not owned by www-data or whatever apache runs as.
+		// Check permissions on sphinx files. Warning if they are not owned by www-data or whatever apache runs as.
 
 		if (count($errors)) {
 			echo "ERRORS:\n";
