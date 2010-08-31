@@ -2,9 +2,9 @@
 
 /**
  * Handles managing the various sphinx binary processes - generating configuration, indexing and starting up / shutting down searchd.
- * 
+ *
  * Needs shell command access to function
- * 
+ *
  * @author Hamish Friedlander <hamish@silverstripe.com>
  */
 class Sphinx extends Controller {
@@ -18,30 +18,30 @@ class Sphinx extends Controller {
 		'status',
 		'diagnose'
 	);
-	
+
 	/** Assoc array mapping sphinx binary name to full path to the binary,
 	  * calcualted in constructor.
 	  */
 	protected $BINPath = array(); // key: binary's name; value: path to binary
-	
+
 	/** Directory or :-separated directories that the sphinx binaries (searchd, indexer, etc.) are in. Add override to mysite/_config.php if they are in a custom location */
 	static $binary_location = '';
-	
+
 	/** Names of the sphinx binaries we care about */
     static $binaries = array( 'indexer', 'searchd', 'search' );
-    
-    /** Common paths under Linux & FreeBSD */
-	const USUAL_PATHS = '/usr/bin:/usr/local/bin:/usr/local/sbin:/opt/local/bin';
-	
+
+    /** Common paths under Linux & FreeBSD & Windows */
+	const USUAL_PATHS = '/usr/bin:/usr/local/bin:/usr/local/sbin:/opt/local/bin:/Sphinx/bin';
+
 	/** Paths we searched to find binaries, for diagnostics */
 	private $_diagnostic_paths = array();
-    
+
 	/** Override where the indexes and other run-time data is stored. By default, uses subfolders of TEMP_FOLDER/sphinx (normally /tmp/silverstripe-cache-sitepath/sphinx) */
 	static $var_path = null;
 	static $idx_path = null;
 	static $pid_file = null;
 
-	/** Set a tcp port. By default, searchd uses a unix socket in var_path. Set a port here or as SS_SPHINX_TCP_PORT to use tcp socket listening on this port on localhost instead */ 
+	/** Set a tcp port. By default, searchd uses a unix socket in var_path. Set a port here or as SS_SPHINX_TCP_PORT to use tcp socket listening on this port on localhost instead */
 	static $tcp_port = null;
 
 	static $client_class = "SphinxClient";
@@ -58,7 +58,7 @@ class Sphinx extends Controller {
 	/**
 	 * Setter for indexer options. This is merged with (and overrides)
 	 * the defaults.
-     */ 
+     */
 	static function set_indexer_options($options) {
 		self::$indexer_options = array_merge(self::$indexer_options, $options);
 	}
@@ -99,6 +99,9 @@ class Sphinx extends Controller {
 	function __construct() {
 		global $databaseConfig;
 
+		//use windows binary names if we are on the windows platform
+		if (strpos(PHP_OS, "WIN") !== false) self::$binaries = array( 'indexer.exe', 'searchd.exe', 'search.exe' );
+
 		$this->Database = new ArrayData($databaseConfig);
 		$this->SupportedDatabase = true;
 
@@ -115,11 +118,11 @@ class Sphinx extends Controller {
 			default:
 				// Other databases are not supported by sphinx itself, so this
 				// will prevent generation of database connection settings to
-				// sphinx.conf. However, we don't throw an error, because 
+				// sphinx.conf. However, we don't throw an error, because
 				// xmlpipes can still be used in this mode.
 				$this->SupportedDatabase = false;
 		}
-		
+
 		// If there is a custom port, its on the end of Database->server, so take it off and stick it in the port property (which is not in $databaseConfig)
 		if (strpos($this->Database->server, ":") !== FALSE) {
 			$a = explode(":", $this->Database->server);
@@ -128,20 +131,20 @@ class Sphinx extends Controller {
 		}
 
 		// @todo This is specific to MySQL. Default port should come from the DB layer.
-		if (!is_numeric($this->Database->port)) $this->Database->port = 3306;		
-		
+		if (!is_numeric($this->Database->port)) $this->Database->port = 3306;
+
 		// If server is localhost, sphinx tries connecting using a socket instead. Lets avoid that
 		if ($this->Database->server == 'localhost') $this->Database->server = '127.0.0.1';
-		
-		$this->CNFPath = Director::baseFolder() . '/sphinx/conf'; 
-		
+
+		$this->CNFPath = Director::baseFolder() . '/sphinx/conf';
+
 		$this->VARPath = self::$var_path ? self::$var_path : TEMP_FOLDER . '/sphinx';
 		$this->IDXPath = self::$idx_path ? self::$idx_path : $this->VARPath . '/idxs';
 		$this->PIDFile = self::$pid_file ? self::$pid_file : $this->VARPath . '/searchd.pid';
-		
+
 		$port = defined('SS_SPHINX_TCP_PORT') ? SS_SPHINX_TCP_PORT : self::$tcp_port;
 		$this->Listen = $port ? "127.0.0.1:$port" : "{$this->VARPath}/searchd.sock";
-		
+
 		// Work out where the binaries are.
 		$this->BINPath = array();
 		$paths = array();
@@ -151,7 +154,7 @@ class Sphinx extends Controller {
 			$paths = explode( ':', SS_SPHINX_BINARY_LOCATION );     // By constant from _ss_environment.php
 		$paths = array_merge( $paths, explode( ':', self::USUAL_PATHS ) );
 		$this->_diagnostic_paths = $paths;
-		
+
 		// Find all the binary paths and populate BINPath
 		foreach ( $this->stat('binaries') as $file ) {
 			$this->BINPath[$file] = false;
@@ -163,7 +166,7 @@ class Sphinx extends Controller {
 		        }
 		    }
 		}
-		
+
 		// An array that maps class names to arrays of Sphinx_Index objects.
 		$this->indexes = array();
 
@@ -174,20 +177,20 @@ class Sphinx extends Controller {
 
 		parent::__construct();
 	}
-	
+
 	function StopWords() {
 		if (self::$stop_words === null) return "{$this->CNFPath}/stopwords.txt";
-			
+
 		if (is_array(self::$stop_words)) {
 			$words = implode(' ', self::$stop_words);
 			self::$stop_words = "$this->VARPath/stopwords.".sha1($words).'.txt';
 
 			if (!file_exists(self::$stop_words)) file_put_contents(self::$stop_words, $words);
 		}
-		
+
 		return self::$stop_words ? Director::getAbsFile(self::$stop_words) : false;
 	}
-	
+
 	/** Make sure that only administrators or CLI access are allowed to perform actions on object when used as a controller */
 	function init() {
 		parent::init();
@@ -195,26 +198,26 @@ class Sphinx extends Controller {
 		$canAccess = Director::isDev() || !Security::database_is_ready() || Director::is_cli() || Permission::check("ADMIN");
 		if(!$canAccess) return Security::permissionFailure($this, "This page is secured and you need administrator rights to access it");
 	}
-	
+
 	/** Accessor to get the location of a sphinx binary */
 	function bin($prog='') {
 		return ( $this->BINPath[$prog] ? $this->BINPath[$prog] : $prog );
 	}
-	
+
 	/**
 	 * Return the list of indexes to built for a set of classes. If classes are not provided, uses the list
 	 * of all decorated classes.
-	 * 
+	 *
 	 * Construction of indexes is two pass. First pass builds a list that maps a list of classes to a list of indices. The second
 	 * pass uses this to construct the actual Sphinx_Index objects (which needs all classes in the index, hence first pass.)
-	 * 
+	 *
 	 * First pass works by building an array that maps a signature to an index descriptor. The signature is made up of the fields
 	 * that are searchable and fields that are filterable for the class, in a canonical form for comparison. The structure is built
 	 * by iterating over classes, looking for an item in the array with exactly matching descriptor. If one is found, the class
 	 * being indexed CI must be a descendant of the base class in the descriptor CB, or vice versa. If this is true, the descriptor
 	 * will hold the higher level of the two (making the order in which the classes are processed irrelevant). If there is
 	 * not a direct ancestry, then a new descriptor is created.
-	 * 
+	 *
 	 * The second pass is just iterating over the descriptors, and creating the Sphinx_Index objects from it.
 	 *
 	 * @param $classes
@@ -281,7 +284,7 @@ class Sphinx extends Controller {
 		}
 		return $result;
 	}
-	
+
 	// Return a string signature for a class. This consists of the following info, which must all be present:
 	// - the most base ancestor of the class that has the sphinx decorator
 	// - all the fields, in alphabetic order, with filter and sort properties added.
@@ -290,7 +293,7 @@ class Sphinx extends Controller {
 		$sing = new $class();
 		$fields = $sing->sphinxFields($class);
 
-		// Determine the base decorated class    
+		// Determine the base decorated class
 		$ancestors = ClassInfo::ancestry($class, true);
 		$base = "";
 		foreach ($ancestors as $c) {
@@ -319,25 +322,25 @@ class Sphinx extends Controller {
 	 */
 	function check() {
 		$seenClassIDs = array();
-		
+
 		foreach (SphinxSearchable::decorated_classes() as $class) {
 			$base = ClassInfo::baseDataClass($class);
 			$classid = SphinxSearch::unsignedcrc($base);
-			
+
 			if (isset($seenClassIDs[$classid]) && $seenClassIDs[$classid] != $base) user_error("CRC32 clash on ClassName. SphinxSearch won't be reliable unless you rename either {$base} or {$seenClassIDs[$classid]}");
 			$seenClassIDs[$classid] = $base;
 		}
 	}
-	
+
 	/**
 	 * Build the sphinx configuration file. This consists of one (or more) sources, each bound to an index. We use a one to one (or more) ClassName to Index mapping, then search
 	 * over multiple indexes to search children classes.
-	 * 
+	 *
 	 * Side-effects: Will stop searchd if currently running
 	 */
 	function configure() {
 		$this->stop();
-		
+
 		SSViewer::set_source_file_comments(false);
 		$res = array();
 
@@ -370,7 +373,7 @@ class Sphinx extends Controller {
 
 		if (!file_exists($this->VARPath)) mkdir($this->VARPath, 0770);
 		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
-		
+
 		file_put_contents("{$this->VARPath}/sphinx.conf", implode("\n", $res));
 	}
 
@@ -438,7 +441,7 @@ class Sphinx extends Controller {
 	 * @todo Implement a verbose option for debugging that dumps all output irrespective. Detect http/command line, and formats appropriately.
 	 */
 	function reindex($idxs=null) {
-		// If we're being called as a controller, or we're called with no indexes specified, rebuild all indexes 
+		// If we're being called as a controller, or we're called with no indexes specified, rebuild all indexes
 		if ($idxs instanceof SS_HTTPRequest || $idxs instanceof HTTPRequest || $idxs === null) $idxs = $this->indexes();
 		elseif (!is_array($idxs)) $idxs = array($idxs);
 
@@ -449,14 +452,14 @@ class Sphinx extends Controller {
 		}
 
 		// If searchd is running, we want to rotate the indexes
-		$rotate = $this->status() == 'Running' ? '--rotate' : ''; 
-		
+		$rotate = $this->status() == 'Running' ? '--rotate' : '';
+
 		// Generate Sphinx index
 		$idxlist = implode(' ', $idxs);
 
 		$indexingOutput = "";
 		if (!SapphireTest::is_running_test())
-			$indexingOutput = `{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
+			$indexingOutput = `{$this->bin(self::$binaries[0])} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
 
 		if ($this->detectIndexingError($indexingOutput)) {
 			if($this->response) $this->response->addHeader("Content-type", "text/plain");
@@ -470,7 +473,7 @@ class Sphinx extends Controller {
 
 			foreach ($idxs as $idx) {
 				if (!SapphireTest::is_running_test())
-					`{$this->bin('indexer')} --config {$this->VARPath}/sphinx.conf $rotate $idx --buildstops {$this->IDXPath}/$idx.words 100000`;
+					`{$this->bin(self::$binaries[0])} --config {$this->VARPath}/sphinx.conf $rotate $idx --buildstops {$this->IDXPath}/$idx.words 100000`;
 				$p->load_wordfile("{$this->IDXPath}/$idx.words");
 			}
 
@@ -532,12 +535,12 @@ class Sphinx extends Controller {
 		if (SapphireTest::is_running_test()) return;
 
 		if ($this->status() == 'Running') return;
-		$result = `{$this->bin('searchd')} --config {$this->VARPath}/sphinx.conf &> /dev/stdout`;
+		$result = `{$this->bin(self::$binaries[1])} --config {$this->VARPath}/sphinx.conf &> /dev/stdout`;
 		if ($this->status() != 'Running') {
 			user_error("Couldn't start Sphinx, searchd output follows:\n$result", E_USER_WARNING);
 		}
 	}
-	
+
 	/**
 	 * Stop searchd. NOP if already stopped.
 	 */
@@ -545,14 +548,14 @@ class Sphinx extends Controller {
 		if (SapphireTest::is_running_test()) return;
 
 		if ($this->status() != 'Running') return;
-		`{$this->bin('searchd')} --config {$this->VARPath}/sphinx.conf --stop`;
-		
+		`{$this->bin(self::$binaries[1])} --config {$this->VARPath}/sphinx.conf --stop`;
+
 		$time = time();
 		while (time() - $time < 10 && $this->status() == 'Running') sleep(1);
-		
+
 		if ($this->status() == 'Running') user_error('Could not stop sphinx searchd');
 	}
-	
+
 	/**
 	 * By default, the constructor will determine whether to use SphinxClient or the fake client if running
 	 * unit tests. This method allows the sphinx unit tests to override that if required, and to pass a
@@ -591,7 +594,7 @@ class Sphinx extends Controller {
 			}
 		}
 	}
-	
+
 	/**
 	 * Returns a PureSpell instance with the extracted wordlist already loaded
 	 */
@@ -616,7 +619,7 @@ class Sphinx extends Controller {
 	}
 
 	/**
-	 * Return all index objects that index data for the specified class. 
+	 * Return all index objects that index data for the specified class.
 	 * @param $className		Class that is indexed.
 	 * @return unknown_type
 	 */
@@ -773,7 +776,7 @@ class Sphinx extends Controller {
 }
 
 /**
- * Represents a source of data for an index. Two sources are currently supported, sql and xmlpipes, each subclassed. 
+ * Represents a source of data for an index. Two sources are currently supported, sql and xmlpipes, each subclassed.
  */
 abstract class Sphinx_Source extends ViewableData {
 	function __construct($classes, $baseClass) {
@@ -781,17 +784,17 @@ abstract class Sphinx_Source extends ViewableData {
 		$this->Name = $baseClass;
 		$this->Searchable = singleton($baseClass);
 		$this->BaseClass = $baseClass;
-		
+
 		$bt = defined('DB::USE_ANSI_SQL') ? "\"" : "`";
-		
+
 		/* This is used for the Delta handling */
 		$this->prequery = null;
-		
+
 		/* Build the select schema & attributes available */
 		$res = $this->Searchable->sphinxFieldConfig();
 		$this->select = $res['select'];
 		$this->attributes = $res['attributes'];
-		
+
 		$this->manyManys = $this->Searchable->sphinxManyManyAttributes();
 
 		/* Build the actual query */
@@ -805,7 +808,7 @@ abstract class Sphinx_Source extends ViewableData {
 		$this->qry->where = array("{$bt}$baseTable{$bt}.{$bt}ClassName{$bt} in ('" . implode("','", $this->SearchClasses) . "')");
 		if($res['where']) $this->qry->where[] = $res['where'];
 		$this->qry->orderby = null;
-		
+
 		$this->Searchable->extend('augmentSQL', $this->qry);
 	}
 
@@ -865,7 +868,7 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 
 		$conf = singleton($this->BaseClass)->stat("sphinx");
 		$externalFields = ($conf && isset($conf['external_content'])) ? $conf['external_content'] : null;
-	
+
 		$result[] = '  <sphinx:schema>';
 		foreach ($this->select as $alias => $value) {
 			if (!isset($this->attributes[$alias]) && $alias != "id") $result[] = '    <sphinx:field name="' . strtolower($alias) . '"/>';
@@ -887,7 +890,7 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 			$q = DB::query($query);
 			$values = array();
 			foreach ($q as $row) $values[$row["id"]][] = $row[$name];
-			$manyManyData[$name] = $values;	
+			$manyManyData[$name] = $values;
 		}
 
 		$query = $this->qry->execute();
@@ -950,12 +953,12 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 class Sphinx_Index extends ViewableData {
 	function __construct($classes, $baseClass, $mode) {
 		$this->data = singleton('Sphinx');
-		
+
 		$this->SearchClasses = $classes;
 		$this->Name = $baseClass;
 		$this->BaseClass = $baseClass;
 		$this->Mode = $mode;
-		
+
 		$this->isDelta = false;
 
 		$this->Sources = array();
@@ -969,15 +972,15 @@ class Sphinx_Index extends ViewableData {
 		$this->baseTable = $inst->baseTable();
 
 		$this->spiTable = null;
-			
+
 		if (!defined('DB::USE_ANSI_SQL')) $pattern = '/^`([^`]+)`.`SphinxPrimaryIndexed`/';
 		else $pattern = '/^"([^"]+)"."SphinxPrimaryIndexed"/';
 
 		foreach ($this->Sources[0]->select as $alias => $value) {
-			if (preg_match($pattern, $value, $m)) { 
+			if (preg_match($pattern, $value, $m)) {
 				$this->spiTable = $m[1];
-				break; 
-			} 
+				break;
+			}
 		}
 	}
 
@@ -997,12 +1000,12 @@ class Sphinx_Index extends ViewableData {
 	function config() {
 		$out = array();
 		foreach ($this->Sources as $source) $out[] = $source->config();
-		
+
 		$idx = array();
 		$idx[] = "index {$this->Name} : BaseIdx {";
 		foreach ($this->Sources as $source) $idx[] = "source = {$source->Name}Src";
 		$idx[] = "path = {$this->data->IDXPath}/{$this->Name}";
-		
+
 		return implode("\n", $out).implode("\n\t", $idx)."\n}\n";
 	}
 }
