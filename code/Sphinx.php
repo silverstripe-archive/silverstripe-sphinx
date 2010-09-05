@@ -445,6 +445,8 @@ class Sphinx extends Controller {
 		if ($idxs instanceof SS_HTTPRequest || $idxs instanceof HTTPRequest || $idxs === null) $idxs = $this->indexes();
 		elseif (!is_array($idxs)) $idxs = array($idxs);
 
+		$verbose = isset($_GET["verbose"]) && $_GET["verbose"] == 1;
+
 		// If we were passed an array of Sphinx_Index's, get the list of just the names
 		foreach ($idxs as $idx) {
 			if ($idx instanceof Sphinx_Index) $idxs = array_map(create_function('$idx', 'return $idx->Name;'), $idxs);
@@ -480,7 +482,8 @@ class Sphinx extends Controller {
 			$p->save_dictionary("{$this->VARPath}/sphinx.psdic");
 
 			if($this->response) $this->response->addHeader("Content-type", "text/plain");
-			return "OK";
+
+			return ($verbose ? $indexingOutput . "\n" : "") . "OK";
 		}
 	}
 
@@ -731,46 +734,86 @@ class Sphinx extends Controller {
 															"solutions" => array(
 																"Ensure a dev/build has been run since classes were decorated",
 																"Check that indexing has been run (Sphinx/reindex)",
-																"Check that apache and/or cli has permissions to the directory"
+																"Check that apache and/or cli has permissions to the directory",
+																"Ensure reindexing is not failing, issue Sphinx/reindex?verbose=1"
 															));
 			else if (@filesize($f1) == 0 && @filesize($f2) > 0) $warnings[] = array("message" => "Primary index for $name has not been generated, but delta has data",
 															"solutions" => array(
 																"Perform a reindex (Sphinx/reindex)",
-																"Set up a cron job to run Sphinx/index"
+																"Set up a cron job to run Sphinx/index",
+																"Ensure reindexing is not failing, issue Sphinx/reindex?verbose=1"
 															));
 
 		}
 
 		// Check permissions on sphinx files. Warning if they are not owned by www-data or whatever apache runs as.
-
+		$sep = Director::is_cli() ? "\n" : "<br>";
 		if (count($errors)) {
-			echo "ERRORS:\n";
+			echo $this->format("heading", "Errors:");
+			echo $this->format("liststart");
 			foreach ($errors as $error) {
-				echo "* {$error["message"]}\n";
+				echo $this->format("listitemstart", $error["message"]);
 				if (isset($error["solutions"])) {
-					echo "  Possible solutions:\n";
-					foreach ($error["solutions"] as $solution) echo "  - $solution\n";
+					echo $this->format("liststart", "Possible solutions:");
+					foreach ($error["solutions"] as $solution) echo $this->format("listitem", $solution);
+					echo $this->format("listend");
 				}
 			}
-			echo "\n";
+			echo $this->format("listend");
 		}
 
 		if (count($warnings)) {
-			echo "WARNINGS:\n";
+			echo $this->format("heading", "Warnings:");
+			echo $this->format("liststart");
 			foreach ($warnings as $warning) {
-				echo "* {$warning["message"]}\n";
+				echo $this->format("listitemstart", $warning["message"]);
 				if (isset($warning["solutions"])) {
-					echo "  Possible solutions:\n";
-					foreach ($warning["solutions"] as $solution) echo "  - $solution\n";
+					echo $this->format("text", "Possible solutions:");
+					echo $this->format("liststart");
+					foreach ($warning["solutions"] as $solution) echo $this->format("listitem", $solution);
+					echo $this->format("listend");
 				}
+				echo $this->format("listitemend");
 			}
-			echo "\n";
+			echo $this->format("listend");
 		}
-
 		if (count($notices)) {
-			echo "NOTICES:\n";
-			foreach ($notices as $notice) echo $notice == "" ? "\n" : "- $notice\n";
-			echo "\n";
+			echo $this->format("heading", "Notices:");
+			echo $this->format("liststart");
+			foreach ($notices as $notice) echo $this->format("listitem", $notice);
+			echo $this->format("listend");
+		}
+	}
+
+	private $listDepth = 0;
+
+	/**
+	 * Return a formatted variant of an element. Uses Director::is_cli() to determine
+	 * if running command line or in browser, returning output in plain text or HTML
+	 * respectively.
+	 * @param  $s
+	 * @param  $style
+	 * @return void
+	 */
+	function format($style, $s = "") {
+		switch ($style) {
+			case "heading":
+				return Director::is_cli() ? strtoupper($s) . "\n" : "<h1>$s</h1>";
+			case "text":
+				return Director::is_cli() ? substr("    ", 0, $this->listDepth * 2) . "$s\n" : "$s<br>";
+			case "liststart":
+				$this->listDepth++;
+				return Director::is_cli() ? "$s\n" : "$s\n<ul>";
+			case "listitem":
+				if ($s == "") return Director::is_cli() ? "\n" : "</ul><ul>";
+				return Director::is_cli() ? substr("    ", 0, ($this->listDepth-1) * 2) . "* $s\n" : "<li>$s</li>\n";
+			case "listitemstart":
+				return Director::is_cli() ? "* $s\n" : "<li>$s</br>\n";
+			case "listitemend":
+				return Director::is_cli() ? "  $s\n" : "</li>\n";
+			case "listend":
+				$this->listDepth--;
+				return Director::is_cli() ? "\n" : "</ul>$s\n";
 		}
 	}
 }
