@@ -926,14 +926,25 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 
 		if ($this->prequery) $query = DB::query($this->prequery);
 
-		// Fetch many-many data. The query we are given selects all M-M for this type of object. Note this produces an array
-		// of values for each M-M, which maps id=>array of mapps values, where id is the 64-bit class + ID.
+		// Fetch many-many data. Each item in $this->manyManys is a map from an attribute name, to be used
+		// as the multi-value attribute name, and maps to either a string SQL query that gets all the
+		// attributes values, or to an array which identifies a callback that gets the attribute values for
+		// each doc. If it's a query, we execute it which selects all M-M for this type of object.
+		// Note this produces an array of values for each M-M, which maps id=>array of maps values,
+		// where id is the 64-bit class + ID.
+		// If the value is a callback, we add it to the callback, because that's executed during iteration over
+		// the objects.
 		$manyManyData = array();
+		$manyManyCallbacks = array();
 		foreach ($this->manyManys as $name => $query) {
-			$q = DB::query($query);
-			$values = array();
-			foreach ($q as $row) $values[$row["id"]][] = $row[$name];
-			$manyManyData[$name] = $values;
+			if (is_string($query)) {
+				$q = DB::query($query);
+				$values = array();
+				foreach ($q as $row) $values[$row["id"]][] = $row[$name];
+				$manyManyData[$name] = $values;
+			}
+			else if (is_array($query))
+				$manyManyCallbacks[$name] = $query;
 		}
 
 		$query = $this->qry->execute();
@@ -958,11 +969,19 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 				$result[] = '    <' . strtolower($alias) . '>' . $out . '    </' . strtolower($alias) . '>';
 			}
 
-			// Many-to-many relationships - write the tag with the vaues in a comma delimited list in the element.
+			// Many-to-many relationships - write the tag with the values in a comma delimited list in the element.
 			foreach ($manyManyData as $name => $values) {
 				$result[] = '    <' . strtolower($name) . '>';
 
 				if (isset($values[$row["id"]])) $result[] = implode(",", $values[$row["id"]]);
+				$result[] = '    </' . strtolower($name) . '>';
+			}
+
+			// Many-to-manys defined by callbacks
+			foreach ($manyManyCallbacks as $name => $callback) {
+				$result[] = '    <' . strtolower($name) . '>';
+				$val = call_user_func($callback, $row["_id"]);
+				if ($val && is_array($val)) $result[] = implode(",", $val);
 				$result[] = '    </' . strtolower($name) . '>';
 			}
 
