@@ -527,7 +527,8 @@ decorator that introduces additional write() calls to the data object.
 # Troubleshooting
 
 The first thing to do is issue the command:
-`sapphire/sake Sphinx/diagnose` on the command line. This will attempt to find a number of common conditions such as:
+`sapphire/sake Sphinx/diagnose` on the command line, or point your browser at `yoursite/Sphinx/diagnose`
+This will attempt to find a number of common conditions such as:
 
 * no classes are decorated with SphinxSearchable
 * the sphinx binaries aren't installed
@@ -538,6 +539,12 @@ The first thing to do is issue the command:
 
 More tests will be added over time.
 
+The second thing to try is running the command:
+`sapphire/sake Sphinx/reindex verbose=1` or point your browser at `yoursite/Sphinx/reindex?verbose=1`
+This will re-generate the indexes, and will output all raw messages from the indexing process.
+Often errors such as permission problems or incorrect configuration will appear in the
+output.
+
 ## Is the Sphinx configuration file being Created?
 
 * Check permissions
@@ -547,7 +554,6 @@ More tests will be added over time.
 * Error is 'No local indices'
 * Check that the class being searched actually have indices
 * Check the sphinx.conf to ensure config for that class is correct.
-* Use 'indexer' on the config file to see if there are errors.
 
 ## Is Temp Directory Path Short Enough
 
