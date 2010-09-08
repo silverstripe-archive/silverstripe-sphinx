@@ -195,6 +195,53 @@ This will mark the class and all sub-classes for indexing.
   specifically defines $searchFields, $filterFields.
   e.g. `static $extensions = array('SphinxSearchable(true)'); // disable automatic inclusion of all subclass fields`
 
+## Many-Many and MVA in Sphinx
+
+Sphinx supports a feature called Multi-Value Attributes, in which a named
+attribute stored against an indexed document can have zero or more values, as
+compared to ordinary attributes that have one value. MVAs are good for representing
+relationships to other documents, as well as tags and categories where a document
+can have many.
+
+In the Sphinx module, these are declared in one of two ways:
+
+* filterable_many_many is suitable when the IDs related to are stored in a
+  many_many relationship in the ORM. In this case, the module will automatically
+  define the MVAs for you.
+
+* extra_many_many is used when there are multiple values per document, but the
+  data does not come from a many_many relationship.
+
+extra_many_many is an array that maps attribute names to the sources of values for that
+attribute. The source can be one of two things: a SQL query or a callback.
+
+Consider this example:
+
+`
+	static $sphinx = array(
+		...
+		"extra_many_many" => array(
+			"attr1" => "select (' . SphinxSearch::unsignedcrc('SiteTree') . '<<32) | PageID AS id, DocumentID AS attr1 FROM Page_Documents'),
+			"attr2" => array("Page", "get_attr2_values")
+		)
+		...
+	);
+`
+
+This defines two MVA attributes, "attr1" which is defined by SQL, and "attr2" which is
+defined by callback.
+
+SQL MVAs must be a SQL statement that returns two columns, 'id' and a column of the same name
+as the attribute. The 'id' column will be a 64-bit sphinx document ID that identifies the
+document the MVA is attached to. The other column defines one of the MVA values for that
+document.This query is executed once when indexing, and will return MVAs for
+all documents.
+
+The callback variant works a little differently. For each document that is being indexed,
+the callback is called with the data object ID passed in. This function should return an
+array of int values which are the attribute values for that document, or null if the document
+has no values for that attribute.
+
 ## Notes on How Indexes are Constructed
 
 The Sphinx module automatically determines the indexes required for a given set
