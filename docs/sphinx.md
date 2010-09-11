@@ -610,6 +610,12 @@ string, so the temp folder path name can't be too long. This is typically
 OK on unix-based systens (e.g,. debian), but is sometimes an issue on OSX
 installs due to the long default temp path.
 
+If you use [_ss_environment.php](http://doc.silverstripe.org/environment-management) to configure your environments, 
+you can  override SilverStripe's built-in `TEMP_FOLDER` constant to something shorter:
+
+	// Necessary for sphinx module, the default /var/folders/... path is too long
+	define('TEMP_FOLDER', '/var/tmp');
+
 ## Errors
 
 ### "failed to send client protocol version"
