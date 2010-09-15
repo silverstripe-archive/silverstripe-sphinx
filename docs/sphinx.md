@@ -47,7 +47,7 @@ If the xmlpipes mode is going to be used, the requisite xml libraries are also
 required.
 
 Ensure the sphinxd search daemon process is set up to start when the computer
-rEboots, running as the same user as apache (e.g. www-data)
+reboots, running as the same user as apache (e.g. www-data)
 
 On OS X, you'll probably need to raise the open file limit for more complex
 sites (see http://serverfault.com/questions/15564/where-are-the-default-ulimits-specified-on-os-x-10-5)
@@ -98,6 +98,47 @@ to increase in size as indexed content is changed, and will increasingly degrade
 system performance. Depending on the nature and size of the content, the cron
 job is typically set up to run periodically anywhere from 15 minutes to a 24
 hour period.
+
+## Windows
+
+The install process for Windows is slightly different, as searchd is installed
+as a service.
+
+* Use 0.9.9 ID-64 binary installer for Windows from sphinxsearch.com. Install this in
+  c:\sphinx
+* Install the module, but don't do a dev/build or Sphinx/configure yet.
+* Configure your project to use TCP/IP connections to searchd, rather than unix sockets (
+  the default, not supported under Windows). To do this, just set Sphinx::$tcp_port to
+  a TCP/IP port in mysite\_config.php
+* Run dev/build, which will also generate the sphinx configuration.
+* Install searchd as a service, using the following command:
+
+`
+cd c:\sphinx\bin
+searchd --install --config tmpdir/sphinx/sphinx.conf --servicename SphinxFoo
+`
+
+* You'll need to change tmpdir above to be the path to the temporary folder for the project.
+  It is also recommended to change the service name to something appropriate for the project. It
+  is possible to run more than one Sphinx searchd service on the same server for different
+  projects, but they require different service names.
+  Note that if the location of the temporary directory changes, you will need to manually stop
+  and uninstall the searchd service, and re-install with the new config file.
+* Decorate classes as required.
+
+If sphinxd port changes, you'll need to stop the service, do Sphinx/configure, and restart it.
+
+PHP binary should be on the path.
+
+From a permissions perspective, IIS user needs to have full access to the temp directory.
+Alternatively, create a silverstripe-cache directory in the top level of your project,
+and SilverStripe will use that instead.
+
+### Comments
+* start and stop do nothing.
+* status assumes the service is running.
+* reindex doesn't report indexer errors as windows doesn't capture its stdout. To debug,
+  run indexer command manually.
 
 # Applying the Decorator
 
@@ -650,7 +691,6 @@ queue.
 * Put hasMany attributes back in (was taken out as conflicted with Variant
   changes)
 * Allow using TCP to connect with searchd, rather than always using unix sockets
-* Support windows
 
 
 
