@@ -41,7 +41,11 @@ class Sphinx extends Controller {
 	static $idx_path = null;
 	static $pid_file = null;
 
-	/** Set a tcp port. By default, searchd uses a unix socket in var_path. Set a port here or as SS_SPHINX_TCP_PORT to use tcp socket listening on this port on localhost instead */
+	/** Set a tcp port. By default, searchd uses a unix socket in var_path.
+	 * Set a port here or as SS_SPHINX_TCP_PORT to use tcp socket listening on this
+	 * port on localhost instead. On Windows, this must be set, as it doesn't
+	 * support unix sockets.
+	 */
 	static $tcp_port = null;
 
 	static $client_class = "SphinxClient";
@@ -100,7 +104,7 @@ class Sphinx extends Controller {
 		global $databaseConfig;
 
 		//use windows binary names if we are on the windows platform
-		if (strpos(PHP_OS, "WIN") !== false) self::$binaries = array( 'indexer.exe', 'searchd.exe', 'search.exe' );
+		if (self::isWindows()) self::$binaries = array( 'indexer.exe', 'searchd.exe', 'search.exe' );
 
 		$this->Database = new ArrayData($databaseConfig);
 		$this->SupportedDatabase = true;
@@ -460,8 +464,11 @@ class Sphinx extends Controller {
 		$idxlist = implode(' ', $idxs);
 
 		$indexingOutput = "";
-		if (!SapphireTest::is_running_test())
-			$indexingOutput = `{$this->bin(self::$binaries[0])} --config {$this->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
+		if (!SapphireTest::is_running_test()) {
+			$cmd = "{$this->bin(self::$binaries[0])} --config {$this->VARPath}/sphinx.conf $rotate $idxlist";
+			if (!self::isWindows()) $cmd .= " &> /dev/stdout";
+			$indexingOutput = `$cmd`;
+		}
 
 		if ($this->detectIndexingError($indexingOutput)) {
 			if($this->response) $this->response->addHeader("Content-type", "text/plain");
@@ -520,8 +527,12 @@ class Sphinx extends Controller {
 	 *		- 'Stopped - Stale PID'
 	 *		- 'Stopped - no PID'
 	 *		- 'Stopped'
+	 * On Windows, it always returns true, assuming that the searchd service
+	 * is operational.
 	 */
 	function status() {
+		if (self::isWindows()) return true;
+
 		if (file_exists($this->PIDFile)) {
 			$pid = (int) trim(file_get_contents($this->PIDFile));
 			if (!$pid) return 'Stopped - No PID';
@@ -533,9 +544,13 @@ class Sphinx extends Controller {
 
 	/**
 	 * Start searchd. NOP if already running.
+	 * On Windows, it does nothing, and assumes the searchd service is appropriately
+	 * managed.
 	 */
 	function start() {
 		if (SapphireTest::is_running_test()) return;
+
+		if (self::isWindows()) return;
 
 		if ($this->status() == 'Running') return;
 		$result = `{$this->bin(self::$binaries[1])} --config {$this->VARPath}/sphinx.conf &> /dev/stdout`;
@@ -546,9 +561,13 @@ class Sphinx extends Controller {
 
 	/**
 	 * Stop searchd. NOP if already stopped.
+	 * On Windows, it does nothing, and assumes the searchd service is appropriately
+	 * managed.
 	 */
 	function stop() {
 		if (SapphireTest::is_running_test()) return;
+
+		if (self::isWindows()) return;
 
 		if ($this->status() != 'Running') return;
 		`{$this->bin(self::$binaries[1])} --config {$this->VARPath}/sphinx.conf --stop`;
@@ -816,6 +835,10 @@ class Sphinx extends Controller {
 				return Director::is_cli() ? "\n" : "</ul>$s\n";
 		}
 	}
+
+	static function isWindows() {
+		return strpos(PHP_OS, "WIN") !== false;
+	}
 }
 
 /**
@@ -895,7 +918,11 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 		$conf = array();
 		$conf[] = "source {$this->Name}Src : BaseSrc {";
 		$conf[] = "type = xmlpipe2";
-		$conf[] = "xmlpipe_command = " . Director::baseFolder() . "/sapphire/sake sphinxxmlsource/" . $this->Name;
+		if (Sphinx::isWindows())
+			$cmd =  "php " . Director::baseFolder() . "/sapphire/cli-script.php";
+		else
+			$cmd = Director::baseFolder() . "/sapphire/sake";
+		$conf[] = "xmlpipe_command = $cmd sphinxxmlsource/" . $this->Name;
 
 		return implode("\n\t", $conf) . "\n}\n";
 	}
@@ -1005,6 +1032,7 @@ class Sphinx_Source_XMLPipe extends Sphinx_Source {
 		$val = preg_replace("/[\x01-\x08\x0B\x0C\x0E-\x1F]/", "", $val);
 		$val = preg_replace("/\]\]\>/", "", $val);					// no ]]>
 		$val = strip_tags($val);									// no html elements
+		if (strlen($val) >= (1048 * 1024)) $val = substr($val, 0, (1048 * 1024)-1);
 		return $val;
 	}
 }
