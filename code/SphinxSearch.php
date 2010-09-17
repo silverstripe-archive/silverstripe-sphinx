@@ -464,6 +464,9 @@ class SphinxSearch extends Object {
 		$reps = $spell->check($qry, 3);
 		
 		if (!empty($reps)) {
+			// work out a cross product of up to the first 3 possible options, and
+			// research. Limits to 3, otherwise cross product can spin php out.
+			if (is_array($reps) && count($reps) > 3) $reps = array_slice($reps, 0, 3);
 			$reps = SphinxArrayLib::crossproduct($reps);
 			
 			foreach($reps as $replacements) {
