@@ -218,8 +218,8 @@ class SphinxSearch extends Object {
 		
 		/* Set limits */
 		$start = $args['start'] ? $args['start'] : $args['page'] * $args['pagesize'];
-		$con->SetLimits($start, $args['pagesize']);
-		
+		$con->SetLimits($start, $args['pagesize'], Sphinx::get_max_matches());
+
 		/* Do the search */
 		$res = $con->Query($qry, implode(';', $indexes));
 
@@ -410,7 +410,7 @@ class SphinxSearch extends Object {
 		$con = $sphinx->connection();
 
 		// Remove limits and existing filters
-		$con->SetLimits(0, 10000);
+		$con->SetLimits(0, 10000, Sphinx::get_max_matches());
 		$con->ResetFilters();
 
 		// Add a filter for each field in the packed keys, using packed fields where they are being used.

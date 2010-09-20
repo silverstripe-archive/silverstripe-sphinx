@@ -82,6 +82,23 @@ class Sphinx extends Controller {
 	);
 
 	/**
+	 * Used as a max_matches argument to searchd. This is set if max_matches is set
+	 * in set_searchd_options, and is made available via a getter so that
+	 * Search::search() can push the same value to the API.
+	 * @var int   0 for no value (use sphinx defaults), non-zero for a specific
+	 * 			  limit
+	 */
+	private static $max_matches = 0;
+
+	/**
+	 * Getter for max_matches.
+	 * @static
+	 * @return int
+	 */
+	static function get_max_matches() {
+		return self::$max_matches;
+	}
+	/**
 	 * Sets options for searchd, which get written to the sphinx configuration
 	 * file. If the following properties are provided, they override
 	 * what sphinx generates (so only set these if you really know what
@@ -93,6 +110,7 @@ class Sphinx extends Controller {
 	 */
 	static function set_searchd_options($options) {
 		self::$searchd_options = array_merge(self::$searchd_options, $options);
+		if (isset($options["max_matches"])) self::$max_matches = $options["max_matches"];
 	}
 
 	static function get_searchd_options() {
