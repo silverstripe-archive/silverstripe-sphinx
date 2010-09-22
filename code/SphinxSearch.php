@@ -105,7 +105,8 @@ class SphinxSearch extends Object {
 			'suggestions' => true,
 			'include_child_classes' => true,
 			'sortmode' => 'relevance',
-			'sortarg' => null
+			'sortarg' => null,
+			'field_weights' => null
 		),$args);
 
 		/* If we want to search children, add the child classes to the list of classes to search */
@@ -133,6 +134,8 @@ class SphinxSearch extends Object {
 		/* Get connection */
 		$con = $sphinx->connection();
 		$con->SetMatchMode(SPH_MATCH_EXTENDED2);
+
+		if ($args['field_weights']) $con->SetFieldWeights($args['field_weights']);
 
 		$packedSort = false;
 		$sortSelectFields = array(); // extra fields for the select field list, to support sort
