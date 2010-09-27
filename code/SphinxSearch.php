@@ -12,9 +12,15 @@ class SphinxSearch extends Object {
 	static $search_warning_generates_user_warning = false;
 	
 	/**
-	 * Trigger a user error on a search engine error? If false just returns the error in SphinxSearch::search's result object 
+	 * Trigger a user error on a search engine error? If false just returns the error in SphinxSearch::search's result object
+	 * @deprecated
 	 */
-	static $search_error_generates_user_error = true;
+	static $search_error_generates_user_error = false;
+	
+	/**
+	 * Trigger an exception on a search engine error
+	 */
+	static $search_error_generates_exception = true;
 	
 	/**
 	 * Get the CRC as a positive integer-string.
@@ -141,7 +147,7 @@ class SphinxSearch extends Object {
 		$sortSelectFields = array(); // extra fields for the select field list, to support sort
 
 		if ($args['sortmode'] != 'relevance') {
-			if (!$args['sortarg']) user_error("Sort arguments must be provided");
+			if (!$args['sortarg']) throw new Exception("Sort arguments must be provided");
 
 			if ($args['sortmode'] == 'eval') $con->SetSortMode("eval", $args['sortarg']);
 			else {
@@ -152,7 +158,7 @@ class SphinxSearch extends Object {
 				// Normalise
 				if (is_array($args['sortarg'])) $fields = $args['sortarg'];
 				else if (is_string($args['sortarg'])) $args['sortarg'] = $fields = array($args['sortarg'] => "asc");
-				else user_error("Invalid sort argument");
+				else throw new Exception("Invalid sort argument");
 
 				$aliasCount = 0;
 				$sortFields = array(); // aggregate of all sort details for packedSortRefineResults
@@ -251,6 +257,7 @@ class SphinxSearch extends Object {
 		
 		if ($err = $con->getLastError()) $ret['Error'] = $err;
 		if ($err && self::$search_error_generates_user_error) user_error($err, E_USER_ERROR);
+		if ($err && self::$search_error_generates_exception) throw new Exception($err);
 		
 		/* If we didn't get that many matches, try looking through all possible spelling corrections to find the one that returns the most matches */
 		if ($args['suggestions'] && $res['total'] < 10) {
