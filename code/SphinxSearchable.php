@@ -246,8 +246,12 @@ class SphinxSearchable extends DataObjectDecorator {
 
 				if ($select) $ret[$name] = array($class, $type, $filter, $sort, $stringType, null);
 			}
-			else	
-				$ret[$name] = array($class, $type, true, in_array($name, $conf['sort_fields']), $stringType, null);
+			else {
+				// excludeByDefault is false, so we just include every field. Except Todo if this is on SiteTree.
+				// @todo Generalise this better.
+				if ($name != "ToDo" || !is_subclass_of($class, "SiteTree"))
+					$ret[$name] = array($class, $type, true, in_array($name, $conf['sort_fields']), $stringType, null);
+			}
 		}
 
 		// Add in any extra fields.
