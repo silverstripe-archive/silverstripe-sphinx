@@ -463,6 +463,9 @@ class Sphinx extends Controller {
 	 * @todo Implement a verbose option for debugging that dumps all output irrespective. Detect http/command line, and formats appropriately.
 	 */
 	function reindex($idxs=null) {
+		$originalMaxExecution = ini_get('max_execution_time');
+		ini_set('max_execution_time', '0');
+
 		// If we're being called as a controller, or we're called with no indexes specified, rebuild all indexes
 		if ($idxs instanceof SS_HTTPRequest || $idxs instanceof HTTPRequest || $idxs === null) $idxs = $this->indexes();
 		elseif (!is_array($idxs)) $idxs = array($idxs);
@@ -490,6 +493,8 @@ class Sphinx extends Controller {
 
 		if ($this->detectIndexingError($indexingOutput)) {
 			if($this->response) $this->response->addHeader("Content-type", "text/plain");
+
+			ini_set('max_execution_time', $originalMaxExecution);
 			return "ERROR\n\n$indexingOutput";
 		}
 		else
@@ -508,6 +513,7 @@ class Sphinx extends Controller {
 
 			if($this->response) $this->response->addHeader("Content-type", "text/plain");
 
+			ini_set('max_execution_time', $originalMaxExecution);
 			return ($verbose ? $indexingOutput . "\n" : "") . "OK";
 		}
 	}
