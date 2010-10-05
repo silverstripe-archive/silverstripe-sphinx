@@ -24,14 +24,14 @@ class Sphinx extends Controller {
 	  */
 	protected $BINPath = array(); // key: binary's name; value: path to binary
 
-	/** Directory or :-separated directories that the sphinx binaries (searchd, indexer, etc.) are in. Add override to mysite/_config.php if they are in a custom location */
+	/** Directory or ,-separated directories that the sphinx binaries (searchd, indexer, etc.) are in. Add override to mysite/_config.php if they are in a custom location */
 	static $binary_location = '';
 
 	/** Names of the sphinx binaries we care about */
     static $binaries = array( 'indexer', 'searchd', 'search' );
 
     /** Common paths under Linux & FreeBSD & Windows */
-	const USUAL_PATHS = '/usr/bin:/usr/local/bin:/usr/local/sbin:/opt/local/bin:/Sphinx/bin';
+	const USUAL_PATHS = '/usr/bin,/usr/local/bin,/usr/local/sbin,/opt/local/bin,c:/sphinx/bin';
 
 	/** Paths we searched to find binaries, for diagnostics */
 	private $_diagnostic_paths = array();
@@ -171,10 +171,10 @@ class Sphinx extends Controller {
 		$this->BINPath = array();
 		$paths = array();
 		if ($this->stat('binary_location'))
-			$paths = explode( ':', $this->stat('binary_location')); // By static from _config.php
+			$paths = explode( ',', $this->stat('binary_location')); // By static from _config.php
 		elseif (defined('SS_SPHINX_BINARY_LOCATION'))
-			$paths = explode( ':', SS_SPHINX_BINARY_LOCATION );     // By constant from _ss_environment.php
-		$paths = array_merge( $paths, explode( ':', self::USUAL_PATHS ) );
+			$paths = explode( ',', SS_SPHINX_BINARY_LOCATION );     // By constant from _ss_environment.php
+		$paths = array_merge( $paths, explode( ',', self::USUAL_PATHS ) );
 		$this->_diagnostic_paths = $paths;
 
 		// Find all the binary paths and populate BINPath
