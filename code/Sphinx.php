@@ -479,7 +479,7 @@ class Sphinx extends Controller {
 		}
 
 		// If searchd is running, we want to rotate the indexes
-		$rotate = $this->status() == 'Running' ? '--rotate' : '';
+		$rotate = (!self::isWindows() && $this->status() == 'Running') ? '--rotate' : '';
 
 		// Generate Sphinx index
 		$idxlist = implode(' ', $idxs);
