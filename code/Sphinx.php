@@ -13,6 +13,7 @@ class Sphinx extends Controller {
 	static $allowed_actions = array(
 		'configure',
 		'reindex',
+		'install',
 		'start',
 		'stop',
 		'status',
@@ -500,6 +501,15 @@ class Sphinx extends Controller {
 		}
 
 		return $hasError ? TRUE : FALSE;
+	}
+
+	function install() {
+		if (!Director::is_cli()) {
+			echo 'Must be run from command line, as root or administrator or equivilent';
+			die;
+		}
+		
+		self::$backend->install();
 	}
 
 	/**
@@ -1054,6 +1064,8 @@ abstract class Sphinx_Backend extends Object {
 		$this->sphinx = $sphinx;
 	}
 
+	function install() { /* NOP */ }
+
 	abstract function status();
 	abstract function start();
 	abstract function stop();
@@ -1095,7 +1107,7 @@ abstract class Sphinx_BinaryBackend extends Sphinx_Backend {
 	static $binary_extension = '';
 
 	/** Names of the sphinx binaries we care about - you can set the absolute location explicity to avoid autodetection */
-	static $binaries = array('indexer', 'search');
+	static $binaries = array('indexer', 'search', 'searchd');
 
 	protected $BinaryLocations = array();
 
@@ -1173,8 +1185,6 @@ class Sphinx_UnixishBackend extends Sphinx_BinaryBackend {
 	
 	static $common_paths = '/usr/bin,/usr/local/bin,/usr/local/sbin,/opt/local/bin';
 
-	static $binaries = array('searchd');
-
 	/**
 	 * Get status of searchd
 	 */
@@ -1227,6 +1237,8 @@ class Sphinx_UnixishBackend extends Sphinx_BinaryBackend {
 class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 	static $common_paths = 'c:/sphinx/bin';
 
+	static $binary_extension = 'exe';
+
 	static $service_name = null;
 
 	function __construct() {
@@ -1240,12 +1252,13 @@ class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 	 * You'll probably get permission errors to start - you need to allow IUSR to
 	 * control this service
 	 */
-	function sc($command) {
+	function sc($command, $failureIsError = true) {
 		$service_name = self::$service_name;
 		$out = `sc $command $service_name`;
 		
 		if (preg_match('/FAILED (\d+)/', $out, $match)) {
-			user_error("Couldn't execute command $command for Sphinx service $service_name, error given was $out", E_USER_ERROR);
+			if ($failureIsError) user_error("Couldn't execute command $command for Sphinx service $service_name, error given was $out", E_USER_ERROR);
+			else return array('ERROR' => $out, 'CODE' => $match[1]);
 		}
 		
 		$lines = array();
@@ -1257,11 +1270,49 @@ class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 		
 		$res = array();
 		foreach ($lines as $line) {
-			list($key,$data) = explode(':', $line);
-			$res[trim($key)] = preg_split('/(?<!,)\s+/', trim($data));
+			$parts = explode(' : ', $line);
+			$res[trim($parts[0])] = isset($parts[1]) ? preg_split('/(?<!,)\s+/', trim($parts[1])) : '';
 		}
 		
 		return $res;
+	}
+
+	function install() {
+		$servicename = self::$service_name;
+		$res = $this->sc('qc', false);		
+		$config = str_replace('/', '\\', $this->sphinx->VARPath . '/sphinx.conf');
+		
+		if (isset($res['ERROR'])) {
+			if ($res['CODE'] == 1060) {
+				// Create service
+				echo "Creating service:\n";
+				echo `{$this->bin('searchd')} --install --config {$config} --servicename $servicename`;
+				echo "\n";
+				
+				echo "Setting permissions:\n";
+				$current = trim(`sc sdshow $servicename`);
+				$new = str_replace('D:', 'D:(A;;CCLCSWLORPWP;;;S-1-5-17)', $current);
+				echo `sc sdset $servicename $new`;
+				echo "\n";
+				
+				echo "Done\n";
+			}
+			if ($res['CODE'] == 5) {
+				echo 'Permission denied - are you running this as Administrator?';
+			}
+		}
+		else {
+			$binpath = implode(' ', $res['BINARY_PATH_NAME']);
+			if (!preg_match('/--config ((\'[^\']+)|("[^"]+)|([^\s]+))/', $binpath, $m)) {
+				user_error('Couldn\'t parse config from binary path ' . $binpath, E_USER_ERROR);
+			}
+			else if ($m[1] !== $config) {
+				user_error('Sphinx service '.self::$service_name.' is already set up for different site (config file: '.$m[1].')', E_USER_ERROR);
+			}
+			else {
+				echo 'Already installed';
+			}
+		}
 	}
 
 	function status() {
