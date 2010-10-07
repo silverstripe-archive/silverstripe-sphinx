@@ -343,6 +343,15 @@ class Sphinx extends Controller {
 	function configure() {
 		$this->stop();
 
+		if (!file_exists($this->VARPath)) mkdir($this->VARPath, 0770);
+		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
+
+		file_put_contents("{$this->VARPath}/sphinx.conf", $this->generateConfiguration());
+
+		self::$backend->configure();
+	}
+
+	function generateConfiguration() {
 		SSViewer::set_source_file_comments(false);
 		$res = array();
 
@@ -373,10 +382,7 @@ class Sphinx extends Controller {
 		foreach (self::$searchd_options as $key => $value) $res[] = "\t$key = $value";
 		$res[] = "}";
 
-		if (!file_exists($this->VARPath)) mkdir($this->VARPath, 0770);
-		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
-
-		file_put_contents("{$this->VARPath}/sphinx.conf", implode("\n", $res));
+		return implode("\n", $res);
 	}
 
 	/**
@@ -1064,15 +1070,21 @@ abstract class Sphinx_Backend extends Object {
 		$this->sphinx = $sphinx;
 	}
 
+	// Called by index action to do once only backend specific initialisation of sphinx that needs admin access to do */
 	function install() { /* NOP */ }
+	// Called by configure action to do per schema change backend specific configuration of sphinx */
+	function configure() { /* NOP */ }
 
+	// Next three are obvious
 	abstract function status();
 	abstract function start();
 	abstract function stop();
 
+	// Called during reindex
 	abstract function updateIndexes($idxs, $verbose=false);
 	abstract function updateDictionary($idxs);
 
+	// Called during diagnose, to do backend specific diagnosis
 	function diagnose(&$errors, &$warnings, &$notices) { /* NOP */ }
 }
 
@@ -1246,6 +1258,25 @@ class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 		parent::__construct();
 	}
 
+	protected $locks = array();
+
+	protected function obtainLock($lock) {
+		// Don't attempt to relock if we're already holding the lock
+		if (isset($this->locks[$lock])) return;
+		
+		// Grab the lock using flock
+		$this->locks[$lock] = fopen($this->sphinx->VARPath."/sphinx_{$lock}.lock", "a");
+		if (!flock($this->locks[$lock], LOCK_EX)) user_error('Couldn\'t obtain Sphinx lock', E_USER_ERROR);
+	}
+	
+	protected function releaseLock($lock) {
+		if (!isset($this->locks[$lock])) user_error('Wanted to release lock, but wasn\'t holding it', E_USER_ERROR);
+		
+		flock($this->locks[$lock], LOCK_UN);
+		fclose($this->locks[$lock]);
+		unset($this->locks[$lock]);
+	}
+
 	/**
 	 * Calls the 'sc' binary to do service control. Hacky little parser to parse results
 	 *
@@ -1315,6 +1346,21 @@ class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 		}
 	}
 
+	function configure() {
+		// Remember original
+		$idxPath = $this->sphinx->IDXPath;
+
+		// Change IDXPath to point to rotate subdirectory, and create if missing
+		$this->sphinx->IDXPath = $idxPath.'/rotate';
+		if (!file_exists($this->sphinx->IDXPath)) mkdir($this->sphinx->IDXPath, 0770);
+
+		// Regenerate the configuration
+		file_put_contents("{$this->sphinx->VARPath}/sphinx-rotate.conf", $this->sphinx->generateConfiguration());
+
+		// And restore to original
+		$this->sphinx->IDXPath = $idxPath;
+	}
+
 	function status() {
 		$res = $this->sc('query');
 
@@ -1324,7 +1370,11 @@ class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 
 	function start() {
 		if ($this->status() == 'Running') return;
-		$res = $this->sc('start');
+		
+		// Obtain lock before starting, since reindex might be holding it stopped
+		$this->obtainLock('start');
+		$this->sc('start');
+		$this->releaseLock('start');
 	}
 
 	function stop() {
@@ -1345,13 +1395,35 @@ class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 	}
 
 	function updateIndexes($idxs, $verbose=false) {
-		// Can't rotate on windows. At the moment, stop sphinx, start again after index
-		if ($runningBeforeUpdate = ($this->status() == 'Running')) $this->stop();
-
+		// Make sure no more than one reindex running at once
+		$this->obtainLock('reindex');
+			
+		// Remove any old partially built indexes
+		foreach (glob($this->sphinx->IDXPath.'/rotate/*') as $file) unlink($file);
+			
+		// Build in the rotate directory
 		$idxlist = implode(' ', $idxs);
-		return `{$this->bin('indexer')} --config {$this->sphinx->VARPath}/sphinx.conf $idxlist &> /dev/stdout`;
+		$res = `{$this->bin('indexer')} --config {$this->sphinx->VARPath}/sphinx-rotate.conf $idxlist`;
+		
+		if (!$this->sphinx->detectIndexingError($res)) {
+			// Make sure start doesn't get run
+			$this->obtainLock('start');
+			
+			// Fake rotation
+			if ($runningBeforeUpdate = ($this->status() == 'Running')) $this->stop();
+			
+			foreach (glob($this->sphinx->IDXPath.'/rotate/*') as $file) {
+				$name = basename($file);
+				rename($file, "{$this->sphinx->IDXPath}/$name");
+			}
 
-		if ($runningBeforeUpdate) $this->start();
+			if ($runningBeforeUpdate) $this->start();
+			else $this->releaseLock('start');
+		}
+		
+		$this->releaseLock('reindex');
+		
+		return $res;
 	}
 }
 
