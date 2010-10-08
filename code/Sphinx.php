@@ -448,15 +448,29 @@ class Sphinx extends Controller {
 	 *		names as strings, or Sphinx_Index objects.
 	 * @todo Implement a verbose option for debugging that dumps all output irrespective. Detect http/command line, and formats appropriately.
 	 */
-	function reindex($idxs=null) {
+	function reindex($idxs=null, $verbose=false) {
 		$originalMaxExecution = ini_get('max_execution_time');
 		ini_set('max_execution_time', '0');
 
-		// If we're being called as a controller, or we're called with no indexes specified, rebuild all indexes
-		if ($idxs instanceof SS_HTTPRequest || $idxs instanceof HTTPRequest || $idxs === null) $idxs = $this->indexes();
-		elseif (!is_array($idxs)) $idxs = array($idxs);
+		// If this is a direct request, get arguments from request
+		if ($idxs instanceof SS_HTTPRequest || $idxs instanceof HTTPRequest) {
+			$idxs = null;
 
-		$verbose = isset($_GET["verbose"]) && $_GET["verbose"] == 1;
+			// Indexes (making sure to sanitise)
+			if (isset($_REQUEST['idxs'])) {
+				$idxs = array();
+				foreach(explode(';',$_REQUEST['idxs']) as $idx) $idxs[] = preg_replace('/[^\w]+/','',$idx);
+			}
+
+			// Verbose
+			$verbose = isset($_REQUEST["verbose"]) && $_REQUEST["verbose"] == 1;
+		}
+
+		// If no indexes specified, rebuild all indexes
+		if ($idxs === null) $idxs = $this->indexes();
+
+		// Make array
+		if (!is_array($idxs)) $idxs = array($idxs);
 
 		// If we were passed an array of Sphinx_Index's, get the list of just the names
 		foreach ($idxs as $idx) {
@@ -1427,5 +1441,49 @@ class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 	}
 }
 
+/**
+ * Remote backend - use in clustered environments on every machine except one, so that there's only ever one
+ * Sphinx running
+ */
+class Sphinx_RemoteBackend extends Sphinx_Backend {
+
+	static $remote_url = null;
+
+	protected function req($method, $args = null) {
+		// Create the handle
+		$ch = curl_init(Controller::join_links(self::$remote_url, 'Sphinx', $method));
+		// Get the body back
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		// Set the post data
+		if ($args) {
+			curl_setopt($ch, CURLOPT_POST, 1);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, $args);
+		}
+		// Make the request
+		$page = curl_exec($ch);
+		// Close the handle
+		curl_close($ch);
+		// Return the result
+		return $page;
+	}
+
+	function status() {
+		return $this->req('status');
+	}
+
+	function start() {
+		return $this->req('start');
+	}
+
+	function stop() {
+		return $this->req('stop');
+	}
+
+	function updateIndexes($idxs, $verbose=false) {
+		return $this->req('reindex', array('idxs' => implode(';', $idxs), 'verbose' => $verbose));
+	}
+
+	function updateDictionary($idxs) { /* NOP - relies on updateIndexes doing the right thing */ }
+}
 
 
