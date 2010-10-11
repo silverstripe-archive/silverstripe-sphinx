@@ -22,13 +22,19 @@ abstract class FileTextExtractor extends Object {
 		if (!self::$sorted_extractor_classes) {
 			// Generate the sorted list of extractors on demand.
 			$classes = ClassInfo::subclassesFor("FileTextExtractor");
-			array_shift($classes);
-			$sortedClasses = array();
-			foreach($classes as $class) $sortedClasses[$class] = Object::get_static($class, 'priority');
-			arsort($sortedClasses);
 
+			$sortedClasses = array();
+			foreach($classes as $class) {
+				$ref = new ReflectionClass($class);
+				if (!$ref->isAbstract() && singleton($class)->environmentSupported()) {
+					$sortedClasses[$class] = Object::get_static($class, 'priority');
+				}
+			}
+
+			arsort($sortedClasses);
 			self::$sorted_extractor_classes = $sortedClasses;
 		}
+		
 		foreach(self::$sorted_extractor_classes as $className => $priority) {
 			$formatter = new $className();
 			if(in_array($extension, $formatter->supportedExtensions())) {
@@ -49,6 +55,12 @@ abstract class FileTextExtractor extends Object {
 	 * @return unknown_type
 	 */
 	abstract function getContent($file);
+
+	/**
+	 * Can override to return true or false depending on if the current environment is supported or not.
+	 * If false, this extractor won't be used on this platform
+	 */
+	function environmentSupported() { return true; }
 }
 
 ?>
