@@ -7,7 +7,7 @@
 * Mark Stephens
   <mark (at) silverstripe (dot) com>
 
-## Requirements
+## Requirementsld
 
 * SilverStripe 2.4 or newer
 * sphinx binary installation 0.9.9-rc2 or greater with 64-bit document id
@@ -388,6 +388,7 @@ which files are indexed.
 											'pagesize' => $pagesize,
 											'sortmode' => $sortmode,
 											'sortarg' => $sortarg,
+											'field_weights' => $fieldWeights,
 											'suggestions' => true)));
 `
 
@@ -411,6 +412,8 @@ Available options are:
 * 'sortarg' - an argument to the sorting mode.
 * 'suggestions' - if true, alternative spelling suggestions are returned if
   there are less than 10 results. If false, suggestions are never returned.
+* 'field_weights' - if provided, a map searchable text field names to integer
+  weights. See Sphinx documentation for how weighting works before setting values.
 
 The result is an associative array with the following keys:
 * 'Matches' - a DataObjectSet with the search results.
