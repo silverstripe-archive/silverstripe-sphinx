@@ -685,6 +685,8 @@ class Sphinx extends Controller {
 	 * @todo Format output nicely for both http and command line.
 	 * @return void
 	 */
+	// This method is ignored in code coverage reports, as it's really a maintenance function, and very dependent on external configuration.
+	// @codeCoverageIgnoreStart
 	function diagnose() {
 		$errors = array();
 		$warnings = array();
@@ -729,7 +731,7 @@ class Sphinx extends Controller {
 		//		$this->PIDFile = self::$pid_file ? self::$pid_file : $this->VARPath . '/searchd.pid';
 
 		// Check if the sphinx binaries are present on the host
-        $notices[] = "Sphinx binary locations: " . implode( ', ', array_values( $this->BINPath ) );
+		$notices[] = "Sphinx binary locations: " . implode( ', ', array_values( $this->BINPath ) );
 		foreach ( $this->stat('binaries') as $file ) {
 			if ( !$this->BINPath[$file] ) {
 				$errors[] = array(
@@ -821,6 +823,7 @@ class Sphinx extends Controller {
 			echo $this->format("listend");
 		}
 	}
+	// @codeCoverageIgnoreEnd
 
 	private $listDepth = 0;
 
