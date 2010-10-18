@@ -142,4 +142,3 @@ class SphinxSearchForm extends Form {
 
 }
 
-?>
