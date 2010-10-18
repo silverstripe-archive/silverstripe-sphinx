@@ -186,7 +186,7 @@ class SphinxVariant_Delta extends Object implements SphinxVariant {
 			$prefix = SphinxDBHelper::update_multi_requires_prefix() ? "$qtFlagTable." : "";
 
 			$db = DB::getConn();
-			if ($db instanceof MySQLDatabase) {
+			if ($db instanceof MySQLDatabase || $db instanceof MSSQLDatabase || $db instanceof MSSQLAzureDatabase) {
 				$join = $flagTable == $index->baseTable ? "" : "LEFT JOIN $qtBase on $qtFlagTable.$qtID=$qtBase.$qtID";
 				// $index->Sources[0]->prequery = "UPDATE $qtFlagTable $join SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1 WHERE (" . $index->Sources[0]->qry->getFilter() . ")";
 				$index->Sources[0]->prequery = "UPDATE $qtFlagTable $join SET {$prefix}{$qt}SphinxPrimaryIndexed{$qt} = 1 WHERE (\"ClassName\" in ('" . implode("','", $index->Sources[0]->SearchClasses) . "'))";
