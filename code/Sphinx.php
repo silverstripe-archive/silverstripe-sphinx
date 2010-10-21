@@ -363,7 +363,10 @@ class Sphinx extends Controller {
 	function configure() {
 		$this->stop();
 
+		// Turn off source file comments while rendering the config file
+		$source_file_comments = SSViewer::get_source_file_comments();
 		SSViewer::set_source_file_comments(false);
+
 		$res = array();
 
 		// base source
@@ -397,6 +400,9 @@ class Sphinx extends Controller {
 		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
 
 		file_put_contents("{$this->VARPath}/sphinx.conf", implode("\n", $res));
+
+		// Restore source file comments to it's previous state
+		SSViewer::set_source_file_comments($source_file_comments);
 	}
 
 	/**
