@@ -1387,7 +1387,7 @@ class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 		
 		// Obtain lock before starting, since reindex might be holding it stopped
 		$this->obtainLock('start');
-		$this->sc('start');
+		if ($this->status() != 'Running') $this->sc('start');
 		$this->releaseLock('start');
 	}
 
