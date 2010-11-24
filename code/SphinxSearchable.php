@@ -98,6 +98,11 @@ class SphinxSearchable extends DataObjectDecorator {
 	protected $excludeByDefault;
 	
 	protected $searchedIndexes;
+	
+	/**
+	 * @var array
+	 */
+	protected $cache_sphinxFields = array();
 
 	function __construct($excludeByDefault = false) {
 		parent::__construct();
@@ -202,12 +207,21 @@ class SphinxSearchable extends DataObjectDecorator {
 	 * If excludeByDefault is false, returns all fields in the dataobject and its ancestors.
 	 * if excludeByDefault is true, returns all indexable fields in the ancestors, and fields explicitly defined
 	 * in the class itself.
+	 * 
+	 * Caches values based on the method arguments, to clear the cache use {@link flushCache()}.
+	 * 
 	 * @param string $class The class being introspected
 	 * @param array $childconf The configuration array of the context that is wanting our fields, usually child classes because we start
 	 *    at a child and recurse to the parents.
+	 * @return array
 	 */
 	function sphinxFields($class, $childconf = null) {
 		if ($class == "DataObject") return array();
+		
+		// Cache in memory, this method is called very often.
+		// Clears through flushCache().
+		$cachekey = $class . sha1(serialize($childconf));
+		if(isset($this->cache_sphinxFields[$cachekey])) return $this->cache_sphinxFields[$cachekey];
 
 		$sing = singleton($class);
 		$conf = $sing->stat('sphinx');
@@ -262,6 +276,8 @@ class SphinxSearchable extends DataObjectDecorator {
 			$ret[$fieldName] = array($class, 'Custom', true, true, false, $value);
 		}
 		SphinxVariants::alterSphinxFields($class, $ret);
+
+		$this->cache_sphinxFields[$cachekey] = $ret;
 		
 		return $ret;
 	}
@@ -618,5 +634,9 @@ class SphinxSearchable extends DataObjectDecorator {
 		singleton('Sphinx')->configure();
 		singleton('Sphinx')->reindex();
 		self::$sphinx_configure_called = true;
+	}
+	
+	function flushCache() {
+		if($this->cache_sphinxFields) $this->cache_sphinxFields = array();
 	}
 }
