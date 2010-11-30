@@ -195,7 +195,7 @@ class Sphinx extends Controller {
 		// Determine the client to use. When running unit tests, we always use the fake client which doesn't
 		// try to connect to the server. This is done for all tests, because non-sphinx tests will otherwise
 		// fail when loading YML files, as SphinxSearchable is invoked.
-		self::$client_class = SapphireTest::is_running_test() ? "SphinxClientFaker" : "SphinxClient";
+		self::$client_class = (class_exists('SapphireTest', false) && SapphireTest::is_running_test()) ? "SphinxClientFaker" : "SphinxClient";
 
 		parent::__construct();
 	}
@@ -488,7 +488,7 @@ class Sphinx extends Controller {
 		$idxlist = implode(' ', $idxs);
 
 		$indexingOutput = "";
-		if (!SapphireTest::is_running_test()) {
+		if (class_exists('SapphireTest', false) && !SapphireTest::is_running_test()) {
 			$cmd = "{$this->bin(self::$binaries[0])} --config {$this->VARPath}/sphinx.conf $rotate $idxlist";
 			if (!self::isWindows()) $cmd .= " &> /dev/stdout";
 			$indexingOutput = `$cmd`;
@@ -505,7 +505,7 @@ class Sphinx extends Controller {
 			$p->load_dictionary("{$this->VARPath}/sphinx.psdic");
 
 			foreach ($idxs as $idx) {
-				if (!SapphireTest::is_running_test())
+				if (class_exists('SapphireTest', false) && !SapphireTest::is_running_test())
 					`{$this->bin(self::$binaries[0])} --config {$this->VARPath}/sphinx.conf $rotate $idx --buildstops {$this->IDXPath}/$idx.words 100000`;
 				$p->load_wordfile("{$this->IDXPath}/$idx.words");
 			}
@@ -572,7 +572,7 @@ class Sphinx extends Controller {
 	 * managed.
 	 */
 	function start() {
-		if (SapphireTest::is_running_test()) return;
+		if (class_exists('SapphireTest', false) && SapphireTest::is_running_test()) return;
 
 		if (self::isWindows()) return;
 
@@ -589,7 +589,7 @@ class Sphinx extends Controller {
 	 * managed.
 	 */
 	function stop() {
-		if (SapphireTest::is_running_test()) return;
+		if (class_exists('SapphireTest', false) && SapphireTest::is_running_test()) return;
 
 		if (self::isWindows()) return;
 
