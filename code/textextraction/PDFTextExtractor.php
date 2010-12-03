@@ -6,6 +6,11 @@
  *
  */
 class PDFTextExtractor extends FileTextExtractor {
+	function environmentSupported() {
+		if (strpos(PHP_OS, "WIN") !== false) return false;
+		return $this->stat('binary_location') || file_exists('/usr/bin/pdftotext') || file_exists('/usr/local/bin/pdftotext');
+	}
+
 	function supportedExtensions() {
 		return array("pdf");
 	}
