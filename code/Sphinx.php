@@ -1301,7 +1301,7 @@ class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
 		$service_name = self::$service_name;
 		$out = `sc $command $service_name`;
 		
-		if (preg_match('/FAILED (\d+)/', $out, $match)) {
+		if (preg_match('/FAILED (\d+)/', $out, $match) && !preg_match('/(^|\s)already(\s|$)/', $out)) {
 			if ($failureIsError) user_error("Couldn't execute command $command for Sphinx service $service_name, error given was $out", E_USER_ERROR);
 			else return array('ERROR' => $out, 'CODE' => $match[1]);
 		}
