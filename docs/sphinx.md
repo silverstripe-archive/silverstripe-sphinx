@@ -7,10 +7,22 @@
 * Mark Stephens
   <mark (at) silverstripe (dot) com>
 
-## Requirementsld
+## Requirements
 
 * SilverStripe 2.4 or newer
 * sphinx binary installation 0.9.9-rc2 or greater with 64-bit document id
+
+## Alternative fulltext search modules
+
+This module may in the future be replaced by the fulltext search module, currently in development at
+https://github.com/silverstripe-labs/silverstripe-fulltextsearch
+
+In particular, for projects with very large amounts of data to be stored in the index or projects that will
+be hosted in windows environments, the fulltext search module with it's Solr connector is likely to be a better
+solution.
+
+The sphinx connector for the fulltext search module is not yet developed as of this writing, but once that has happened
+this module is likely to be deprecated.
 
 ## Licensing
 
@@ -69,6 +81,11 @@ If you are using MAMP:
   this in your _ss_environment: define('SS_SPHINX_TCP_PORT', 5000);
 * Make sure your database string in _ss_environment has the port number included
   i.e. define('SS_DATABASE_SERVER', 'localhost:8889');
+
+If you are using Windows:
+Sphinx runs as a service on windows. This service needs to be controllable by the user the webserver acts as.
+This module provides a Sphinx/install task which will install & adjust the permissions of a sphinx service
+as required by the most common configuration under windows.
 
 ## Refresh Configuration and Reindex
 
