@@ -13,29 +13,13 @@ class Sphinx extends Controller {
 	static $allowed_actions = array(
 		'configure',
 		'reindex',
+		'install',
 		'start',
 		'stop',
 		'status',
 		'diagnose'
 	);
-
-	/** Assoc array mapping sphinx binary name to full path to the binary,
-	  * calcualted in constructor.
-	  */
-	protected $BINPath = array(); // key: binary's name; value: path to binary
-
-	/** Directory or :-separated directories that the sphinx binaries (searchd, indexer, etc.) are in. Add override to mysite/_config.php if they are in a custom location */
-	static $binary_location = '';
-
-	/** Names of the sphinx binaries we care about */
-    static $binaries = array( 'indexer', 'searchd', 'search' );
-
-    /** Common paths under Linux & FreeBSD & Windows */
-	const USUAL_PATHS = '/usr/bin:/usr/local/bin:/usr/local/sbin:/opt/local/bin:/Sphinx/bin';
-
-	/** Paths we searched to find binaries, for diagnostics */
-	private $_diagnostic_paths = array();
-
+	
 	/** Override where the indexes and other run-time data is stored. By default, uses subfolders of TEMP_FOLDER/sphinx (normally /tmp/silverstripe-cache-sitepath/sphinx) */
 	static $var_path = null;
 	static $idx_path = null;
@@ -48,6 +32,10 @@ class Sphinx extends Controller {
 	 */
 	static $tcp_port = null;
 
+	/** Backend instance to use. Autodetected if left blank. Backend determines how to start & stop searchd and trigger reindexing */
+	static $backend = null;
+
+	/** What client to use. Can override for testing */
 	static $client_class = "SphinxClient";
 	static $client_class_param = null;	// used to pass SapphireTest object into the controller without coupling
 
@@ -98,6 +86,7 @@ class Sphinx extends Controller {
 	static function get_max_matches() {
 		return self::$max_matches;
 	}
+	
 	/**
 	 * Sets options for searchd, which get written to the sphinx configuration
 	 * file. If the following properties are provided, they override
@@ -119,10 +108,29 @@ class Sphinx extends Controller {
 
 	/** Generate configuration from either static variables or default values, and preps $this to contain configuration values, to be used in templates */
 	function __construct() {
-		global $databaseConfig;
 
-		//use windows binary names if we are on the windows platform
-		if (self::isWindows()) self::$binaries = array( 'indexer.exe', 'searchd.exe', 'search.exe' );
+		$runningTests = class_exists('SapphireTest', false) && SapphireTest::is_running_test();
+
+		/* -- Set up backend if not yet set -- */
+
+		if (!self::$backend) {
+			if ($runningTests) self::$backend = new Sphinx_NullBackend();
+			else if (strpos(PHP_OS, "WIN") !== false) self::$backend = new Sphinx_WindowsServiceBackend();
+			else self::$backend = new Sphinx_UnixishBackend();
+		}
+
+		self::$backend->setSphinxInstance($this);
+
+		/* -- Set up client if not yet set -- */
+
+		if (!self::$client_class) {
+			if ($runningTests) self::$client_class = "SphinxClientFaker";
+			else self::$client_class = "SphinxClient";
+		}
+
+		/* -- Set up database connection info -- */
+
+		global $databaseConfig;
 
 		$this->Database = new ArrayData($databaseConfig);
 		$this->SupportedDatabase = true;
@@ -158,6 +166,8 @@ class Sphinx extends Controller {
 		// If server is localhost, sphinx tries connecting using a socket instead. Lets avoid that
 		if ($this->Database->server == 'localhost') $this->Database->server = '127.0.0.1';
 
+		/* -- Set up path & searchd connection info -- */
+
 		$this->CNFPath = Director::baseFolder() . '/sphinx/conf';
 
 		$this->VARPath = self::$var_path ? self::$var_path : TEMP_FOLDER . '/sphinx';
@@ -167,35 +177,10 @@ class Sphinx extends Controller {
 		$port = defined('SS_SPHINX_TCP_PORT') ? SS_SPHINX_TCP_PORT : self::$tcp_port;
 		$this->Listen = $port ? "127.0.0.1:$port" : "{$this->VARPath}/searchd.sock";
 
-		// Work out where the binaries are.
-		$this->BINPath = array();
-		$paths = array();
-		if ($this->stat('binary_location'))
-			$paths = explode( ':', $this->stat('binary_location')); // By static from _config.php
-		elseif (defined('SS_SPHINX_BINARY_LOCATION'))
-			$paths = explode( ':', SS_SPHINX_BINARY_LOCATION );     // By constant from _ss_environment.php
-		$paths = array_merge( $paths, explode( ':', self::USUAL_PATHS ) );
-		$this->_diagnostic_paths = $paths;
-
-		// Find all the binary paths and populate BINPath
-		foreach ( $this->stat('binaries') as $file ) {
-			$this->BINPath[$file] = false;
-		    foreach ( $paths as $path ) {
-		    	$abs_path =  $path . '/' . $file;
-		        if ( file_exists($abs_path) ) {
-		            $this->BINPath[$file] = $abs_path;
-		            break;
-		        }
-		    }
-		}
+		/* -- Random stuff -- */
 
 		// An array that maps class names to arrays of Sphinx_Index objects.
 		$this->indexes = array();
-
-		// Determine the client to use. When running unit tests, we always use the fake client which doesn't
-		// try to connect to the server. This is done for all tests, because non-sphinx tests will otherwise
-		// fail when loading YML files, as SphinxSearchable is invoked.
-		self::$client_class = SapphireTest::is_running_test() ? "SphinxClientFaker" : "SphinxClient";
 
 		parent::__construct();
 	}
@@ -219,11 +204,6 @@ class Sphinx extends Controller {
 		// Same rules as in DatabaseAdmin.php
 		$canAccess = Director::isDev() || !Security::database_is_ready() || Director::is_cli() || Permission::check("ADMIN");
 		if(!$canAccess) return Security::permissionFailure($this, "This page is secured and you need administrator rights to access it");
-	}
-
-	/** Accessor to get the location of a sphinx binary */
-	function bin($prog='') {
-		return ( $this->BINPath[$prog] ? $this->BINPath[$prog] : $prog );
 	}
 
 	/**
@@ -363,6 +343,15 @@ class Sphinx extends Controller {
 	function configure() {
 		$this->stop();
 
+		if (!file_exists($this->VARPath)) mkdir($this->VARPath, 0770);
+		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
+
+		file_put_contents("{$this->VARPath}/sphinx.conf", $this->generateConfiguration());
+
+		self::$backend->configure();
+	}
+
+	function generateConfiguration() {
 		// Turn off source file comments while rendering the config file
 		$source_file_comments = SSViewer::get_source_file_comments();
 		SSViewer::set_source_file_comments(false);
@@ -396,13 +385,10 @@ class Sphinx extends Controller {
 		foreach (self::$searchd_options as $key => $value) $res[] = "\t$key = $value";
 		$res[] = "}";
 
-		if (!file_exists($this->VARPath)) mkdir($this->VARPath, 0770);
-		if (!file_exists($this->IDXPath)) mkdir($this->IDXPath, 0770);
-
-		file_put_contents("{$this->VARPath}/sphinx.conf", implode("\n", $res));
-
 		// Restore source file comments to it's previous state
 		SSViewer::set_source_file_comments($source_file_comments);
+		
+		return implode("\n", $res);
 	}
 
 	/**
@@ -468,12 +454,29 @@ class Sphinx extends Controller {
 	 *		names as strings, or Sphinx_Index objects.
 	 * @todo Implement a verbose option for debugging that dumps all output irrespective. Detect http/command line, and formats appropriately.
 	 */
-	function reindex($idxs=null) {
-		// If we're being called as a controller, or we're called with no indexes specified, rebuild all indexes
-		if ($idxs instanceof SS_HTTPRequest || $idxs instanceof HTTPRequest || $idxs === null) $idxs = $this->indexes();
-		elseif (!is_array($idxs)) $idxs = array($idxs);
+	function reindex($idxs=null, $verbose=false) {
+		$originalMaxExecution = ini_get('max_execution_time');
+		ini_set('max_execution_time', '0');
 
-		$verbose = isset($_GET["verbose"]) && $_GET["verbose"] == 1;
+		// If this is a direct request, get arguments from request
+		if ($idxs instanceof SS_HTTPRequest || $idxs instanceof HTTPRequest) {
+			$idxs = null;
+
+			// Indexes (making sure to sanitise)
+			if (isset($_REQUEST['idxs'])) {
+				$idxs = array();
+				foreach(explode(';',$_REQUEST['idxs']) as $idx) $idxs[] = preg_replace('/[^\w]+/','',$idx);
+			}
+
+			// Verbose
+			$verbose = isset($_REQUEST["verbose"]) && $_REQUEST["verbose"] == 1;
+		}
+
+		// If no indexes specified, rebuild all indexes
+		if ($idxs === null) $idxs = $this->indexes();
+
+		// Make array
+		if (!is_array($idxs)) $idxs = array($idxs);
 
 		// If we were passed an array of Sphinx_Index's, get the list of just the names
 		foreach ($idxs as $idx) {
@@ -481,39 +484,21 @@ class Sphinx extends Controller {
 			break;
 		}
 
-		// If searchd is running, we want to rotate the indexes
-		$rotate = $this->status() == 'Running' ? '--rotate' : '';
-
-		// Generate Sphinx index
-		$idxlist = implode(' ', $idxs);
-
-		$indexingOutput = "";
-		if (!SapphireTest::is_running_test()) {
-			$cmd = "{$this->bin(self::$binaries[0])} --config {$this->VARPath}/sphinx.conf $rotate $idxlist";
-			if (!self::isWindows()) $cmd .= " &> /dev/stdout";
-			$indexingOutput = `$cmd`;
-		}
+		$indexingOutput = self::$backend->updateIndexes($idxs, $verbose);
 
 		if ($this->detectIndexingError($indexingOutput)) {
 			if($this->response) $this->response->addHeader("Content-type", "text/plain");
+
+			ini_set('max_execution_time', $originalMaxExecution);
 			return "ERROR\n\n$indexingOutput";
 		}
 		else
 		{
-			// Generate word lists
-			$p = new PureSpell();
-			$p->load_dictionary("{$this->VARPath}/sphinx.psdic");
-
-			foreach ($idxs as $idx) {
-				if (!SapphireTest::is_running_test())
-					`{$this->bin(self::$binaries[0])} --config {$this->VARPath}/sphinx.conf $rotate $idx --buildstops {$this->IDXPath}/$idx.words 100000`;
-				$p->load_wordfile("{$this->IDXPath}/$idx.words");
-			}
-
-			$p->save_dictionary("{$this->VARPath}/sphinx.psdic");
+			self::$backend->updateDictionary($idxs);
 
 			if($this->response) $this->response->addHeader("Content-type", "text/plain");
 
+			ini_set('max_execution_time', $originalMaxExecution);
 			return ($verbose ? $indexingOutput . "\n" : "") . "OK";
 		}
 	}
@@ -544,62 +529,37 @@ class Sphinx extends Controller {
 		return $hasError ? TRUE : FALSE;
 	}
 
+	function install() {
+		if (!Director::is_cli()) {
+			echo 'Must be run from command line, as root or administrator or equivilent';
+			die;
+		}
+		
+		self::$backend->install();
+	}
+
 	/**
 	 * Check the status of searchd.
 	 * @return string - One of:
 	 *		- 'Running'
-	 *		- 'Stopped - Stale PID'
-	 *		- 'Stopped - no PID'
-	 *		- 'Stopped'
-	 * On Windows, it always returns true, assuming that the searchd service
-	 * is operational.
+	 *		- 'Stopped( - .*)?'
 	 */
 	function status() {
-		if (self::isWindows()) return true;
-
-		if (file_exists($this->PIDFile)) {
-			$pid = (int) trim(file_get_contents($this->PIDFile));
-			if (!$pid) return 'Stopped - No PID';
-			if (preg_match("/(^|\\s)$pid\\s/m", `ps ax`)) return 'Running';
-			return 'Stopped - Stale PID';
-		}
-		return 'Stopped';
+		return self::$backend->status();
 	}
 
 	/**
 	 * Start searchd. NOP if already running.
-	 * On Windows, it does nothing, and assumes the searchd service is appropriately
-	 * managed.
 	 */
 	function start() {
-		if (SapphireTest::is_running_test()) return;
-
-		if (self::isWindows()) return;
-
-		if ($this->status() == 'Running') return;
-		$result = `{$this->bin(self::$binaries[1])} --config {$this->VARPath}/sphinx.conf &> /dev/stdout`;
-		if ($this->status() != 'Running') {
-			user_error("Couldn't start Sphinx, searchd output follows:\n$result", E_USER_WARNING);
-		}
+		return self::$backend->start();
 	}
 
 	/**
 	 * Stop searchd. NOP if already stopped.
-	 * On Windows, it does nothing, and assumes the searchd service is appropriately
-	 * managed.
 	 */
 	function stop() {
-		if (SapphireTest::is_running_test()) return;
-
-		if (self::isWindows()) return;
-
-		if ($this->status() != 'Running') return;
-		`{$this->bin(self::$binaries[1])} --config {$this->VARPath}/sphinx.conf --stop`;
-
-		$time = time();
-		while (time() - $time < 10 && $this->status() == 'Running') sleep(1);
-
-		if ($this->status() == 'Running') user_error('Could not stop sphinx searchd');
+		return self::$backend->stop();
 	}
 
 	/**
@@ -733,26 +693,6 @@ class Sphinx extends Controller {
 																"Check that apache and/or cli has permissions to the directory"
 															));
 
-		// Check if there is a sphinxd process
-		//		$this->PIDFile = self::$pid_file ? self::$pid_file : $this->VARPath . '/searchd.pid';
-
-		// Check if the sphinx binaries are present on the host
-		$notices[] = "Sphinx binary locations: " . implode( ', ', array_values( $this->BINPath ) );
-		foreach ( $this->stat('binaries') as $file ) {
-			if ( !$this->BINPath[$file] ) {
-				$errors[] = array(
-					"message"	=> "Cannot find the sphinx '$file' binary",
-					"solutions" => array(
-						"Ensure that sphinx binaries are installed as appropriate in these directories: "
-							. implode( ', ', $this->_diagnostic_paths )
-					)
-				);
-			}
-		}
-
-		// Check if file extraction programs are present. Warnings only. Should only test if there are classes
-		// decorated with the file extractor.
-
 		// Run through the primary indexes and check them.
 		// Check if index files are present, and check their size. Deltas can be zero, non deltas indicate
 		// that indexing has never been run. We can probably determine by the gap between a delta and main index
@@ -791,7 +731,13 @@ class Sphinx extends Controller {
 
 		}
 
-		// Check permissions on sphinx files. Warning if they are not owned by www-data or whatever apache runs as.
+		// Backend specific information
+		$notices[] = "Sphinx backend: " . self::$backend->class;
+
+		self::$backend->diagnose($errors, $warnings, $notices);
+
+		// And output
+
 		$sep = Director::is_cli() ? "\n" : "<br>";
 		if (count($errors)) {
 			echo $this->format("heading", "Errors:");
@@ -1138,3 +1084,415 @@ class SphinxDBHelper {
 		return true;
 	}
 }
+
+abstract class Sphinx_Backend extends Object {
+
+	protected $sphinx;
+
+	function setSphinxInstance($sphinx) {
+		$this->sphinx = $sphinx;
+	}
+
+	// Called by index action to do once only backend specific initialisation of sphinx that needs admin access to do */
+	function install() { /* NOP */ }
+	// Called by configure action to do per schema change backend specific configuration of sphinx */
+	function configure() { /* NOP */ }
+
+	// Next three are obvious
+	abstract function status();
+	abstract function start();
+	abstract function stop();
+
+	// Called during reindex
+	abstract function updateIndexes($idxs, $verbose=false);
+	abstract function updateDictionary($idxs);
+
+	// Called during diagnose, to do backend specific diagnosis
+	function diagnose(&$errors, &$warnings, &$notices) { /* NOP */ }
+}
+
+class Sphinx_NullBackend extends Sphinx_Backend {
+
+	protected $status = 'Stopped';
+
+	function status() {
+		return $this->status();
+	}
+
+	function start() {
+		$this->status = 'Running';
+	}
+
+	function stop() {
+		$this->status = 'Stopped';
+	}
+
+	function updateIndexes($idxs, $verbose=false) { /* NOP */ }
+	function updateDictionary($idxs) { /* NOP */ }
+}
+
+abstract class Sphinx_BinaryBackend extends Sphinx_Backend {
+	/** Common paths under Linux & FreeBSD & Windows */
+	static $common_paths = '';
+
+	/** Directory or ,-separated directories that the sphinx binaries (searchd, indexer, etc.) are in. Add override to mysite/_config.php if they are in a custom location */
+	static $binary_location = '';
+
+	/** Binary extension - some OSes (cough windows cough) need an extension to know if something's a binary */
+	static $binary_extension = '';
+
+	/** Names of the sphinx binaries we care about - you can set the absolute location explicity to avoid autodetection */
+	static $binaries = array('indexer', 'search', 'searchd');
+
+	protected $BinaryLocations = array();
+
+	function __construct() {
+		parent::__construct();
+		
+		$paths = $this->searchPaths();
+		$extension = $this->stat('binary_extension');
+
+		// Find all the binary paths and populate binary_locations. If not found, hope it's in path
+		foreach (Object::combined_static($this->class, 'binaries') as $command) {
+			foreach ($paths as $path) {
+				$absPath =  "$path/$command" . ($extension ? ".$extension" : '');
+				if (file_exists($absPath)) {
+					$this->BinaryLocations[$command] = $absPath;
+					break;
+				}
+			}
+		}
+	}
+
+	function searchPaths() {
+		// Look in common paths..
+		$paths = explode(',', $this->stat('common_paths'));
+		// Paths set in static (from _config.php)
+		if ($this->stat('binary_location')) $paths = array_merge(explode(',', $this->stat('binary_location')), $paths);
+		// Paths set in global (from _ss_environment.php)
+		if (defined('SS_SPHINX_BINARY_LOCATION')) $paths = array_merge(explode(',', SS_SPHINX_BINARY_LOCATION), $paths);
+
+		return $paths;
+	}
+
+	function bin($command) {
+		// If we found an explict binary, use that
+		if (isset($this->BinaryLocations[$command])) return $this->BinaryLocations[$command];
+		// Otherwise, hope it's in the path
+		$extension = $this->stat('binary_extension');
+		return $command . ($extension ? ".$extension" : '');
+	}
+
+	function diagnose(&$errors, &$warnings, &$notices) {
+		// Check if the sphinx binaries are present on the host
+		$notices[] = "Sphinx binary locations: " . implode(', ', array_values($this->BinaryLocations));
+
+		foreach (Object::combined_static($this->class, 'binaries') as $command) {
+			if (!isset($this->BinaryLocations[$command])) {
+				$errors[] = array(
+					"message"	=> "Cannot find the sphinx '$command' binary",
+					"solutions" => array(
+						"Set Sphinx_BinaryBackend::\$binary_location or SS_SPHINX_BINARY_LOCATION to include the path that contains the sphinx binaries,".
+						" or ensure that sphinx binaries are installed in one of these directories: ".implode(', ', $this->searchPaths())
+					)
+				);
+			}
+		}
+	}
+
+	function updateDictionary($idxs) {
+		$p = new PureSpell();
+		$p->load_dictionary("{$this->sphinx->VARPath}/sphinx.psdic");
+
+		foreach ($idxs as $idx) {
+			`{$this->bin('indexer')} --config {$this->sphinx->VARPath}/sphinx.conf $idx --buildstops {$this->sphinx->IDXPath}/$idx.words 100000`;
+			$p->load_wordfile("{$this->sphinx->IDXPath}/$idx.words");
+		}
+
+		$p->save_dictionary("{$this->sphinx->VARPath}/sphinx.psdic");
+	}
+}
+
+/**
+ * A sphinx control backend for Linux, OS X and anything else unix-y
+ */
+class Sphinx_UnixishBackend extends Sphinx_BinaryBackend {
+	
+	static $common_paths = '/usr/bin,/usr/local/bin,/usr/local/sbin,/opt/local/bin';
+
+	/**
+	 * Get status of searchd
+	 */
+	function status() {
+		if (file_exists($this->sphinx->PIDFile)) {
+			$pid = (int) trim(file_get_contents($this->sphinx->PIDFile));
+			if (!$pid) return 'Stopped - No PID';
+			if (preg_match("/(^|\\s)$pid\\s/m", `ps ax`)) return 'Running';
+			return 'Stopped - Stale PID';
+		}
+		return 'Stopped';
+	}
+
+	/**
+	 * Start searchd. NOP if already running.
+	 */
+	function start() {
+		if ($this->status() == 'Running') return;
+		$result = `{$this->bin('searchd')} --config {$this->sphinx->VARPath}/sphinx.conf &> /dev/stdout`;
+		
+		if ($this->status() != 'Running') {
+			user_error("Couldn't start Sphinx, searchd output follows:\n$result", E_USER_WARNING);
+		}
+	}
+
+	/**
+	 * Stop searchd. NOP if already stopped.
+	 */
+	function stop() {
+		if ($this->status() != 'Running') return;
+		`{$this->bin('searchd')} --config {$this->sphinx->VARPath}/sphinx.conf --stop`;
+
+		$time = time();
+		while (time() - $time < 10 && $this->status() == 'Running') sleep(1);
+
+		if ($this->status() == 'Running') user_error('Could not stop sphinx searchd');
+	}
+
+	function updateIndexes($idxs, $verbose=false) {
+		// If searchd is running, we want to rotate the indexes
+		$rotate = ($this->status() == 'Running') ? '--rotate' : '';
+		$idxlist = implode(' ', $idxs);
+		return `{$this->bin('indexer')} --config {$this->sphinx->VARPath}/sphinx.conf $rotate $idxlist &> /dev/stdout`;
+	}
+}
+
+/**
+ * A sphinx control backend for windows
+ */
+class Sphinx_WindowsServiceBackend extends Sphinx_BinaryBackend {
+	static $common_paths = 'c:/sphinx/bin';
+
+	static $binary_extension = 'exe';
+
+	static $service_name = null;
+
+	function __construct() {
+		if (!self::$service_name) self::$service_name = 'SphinxSearch_'.sha1(Director::baseFolder());
+		parent::__construct();
+	}
+
+	protected $locks = array();
+
+	protected function obtainLock($lock) {
+		// Don't attempt to relock if we're already holding the lock
+		if (isset($this->locks[$lock])) return;
+		
+		// Grab the lock using flock
+		$this->locks[$lock] = fopen($this->sphinx->VARPath."/sphinx_{$lock}.lock", "a");
+		if (!flock($this->locks[$lock], LOCK_EX)) user_error('Couldn\'t obtain Sphinx lock', E_USER_ERROR);
+	}
+	
+	protected function releaseLock($lock) {
+		if (!isset($this->locks[$lock])) user_error('Wanted to release lock, but wasn\'t holding it', E_USER_ERROR);
+		
+		flock($this->locks[$lock], LOCK_UN);
+		fclose($this->locks[$lock]);
+		unset($this->locks[$lock]);
+	}
+
+	/**
+	 * Calls the 'sc' binary to do service control. Hacky little parser to parse results
+	 *
+	 * You'll probably get permission errors to start - you need to allow IUSR to
+	 * control this service
+	 */
+	function sc($command, $failureIsError = true) {
+		$service_name = self::$service_name;
+		$out = `sc $command $service_name`;
+		
+		if (preg_match('/FAILED (\d+)/', $out, $match) && !preg_match('/(^|\s)already(\s|$)/', $out)) {
+			if ($failureIsError) user_error("Couldn't execute command $command for Sphinx service $service_name, error given was $out", E_USER_ERROR);
+			else return array('ERROR' => $out, 'CODE' => $match[1]);
+		}
+		
+		$lines = array();
+		foreach (explode("\n", $out) as $line) {
+			$line = trim($line); if (!$line) continue;
+			if (strpos($line, ':')===false) $lines[] = array_pop($lines)." ".$line;
+			else $lines[] = $line;
+		}
+		
+		$res = array();
+		foreach ($lines as $line) {
+			$parts = explode(' : ', $line);
+			$res[trim($parts[0])] = isset($parts[1]) ? preg_split('/(?<!,)\s+/', trim($parts[1])) : '';
+		}
+		
+		return $res;
+	}
+
+	function install() {
+		$servicename = self::$service_name;
+		$res = $this->sc('qc', false);		
+		$config = str_replace('/', '\\', $this->sphinx->VARPath . '/sphinx.conf');
+		
+		if (isset($res['ERROR'])) {
+			if ($res['CODE'] == 1060) {
+				// Create service
+				echo "Creating service:\n";
+				echo `{$this->bin('searchd')} --install --config {$config} --servicename $servicename`;
+				echo "\n";
+				
+				echo "Setting permissions:\n";
+				$current = trim(`sc sdshow $servicename`);
+				$new = str_replace('D:', 'D:(A;;CCLCSWLORPWP;;;S-1-5-17)', $current);
+				echo `sc sdset $servicename $new`;
+				echo "\n";
+				
+				echo "Done\n";
+			}
+			if ($res['CODE'] == 5) {
+				echo 'Permission denied - are you running this as Administrator?';
+			}
+		}
+		else {
+			$binpath = implode(' ', $res['BINARY_PATH_NAME']);
+			if (!preg_match('/--config ((\'[^\']+)|("[^"]+)|([^\s]+))/', $binpath, $m)) {
+				user_error('Couldn\'t parse config from binary path ' . $binpath, E_USER_ERROR);
+			}
+			else if ($m[1] !== $config) {
+				user_error('Sphinx service '.self::$service_name.' is already set up for different site (config file: '.$m[1].')', E_USER_ERROR);
+			}
+			else {
+				echo 'Already installed';
+			}
+		}
+	}
+
+	function configure() {
+		// Remember original
+		$idxPath = $this->sphinx->IDXPath;
+
+		// Change IDXPath to point to rotate subdirectory, and create if missing
+		$this->sphinx->IDXPath = $idxPath.'/rotate';
+		if (!file_exists($this->sphinx->IDXPath)) mkdir($this->sphinx->IDXPath, 0770);
+
+		// Regenerate the configuration
+		file_put_contents("{$this->sphinx->VARPath}/sphinx-rotate.conf", $this->sphinx->generateConfiguration());
+
+		// And restore to original
+		$this->sphinx->IDXPath = $idxPath;
+	}
+
+	function status() {
+		$res = $this->sc('query');
+
+		if ($res['STATE'][1] == 'RUNNING') return 'Running';
+		return 'Stopped';
+	}
+
+	function start() {
+		if ($this->status() == 'Running') return;
+		
+		// Obtain lock before starting, since reindex might be holding it stopped
+		$this->obtainLock('start');
+		if ($this->status() != 'Running') $this->sc('start');
+		$this->releaseLock('start');
+	}
+
+	function stop() {
+		if ($this->status() != 'Running') return;
+		
+		$res = $this->sc('stop');
+		
+		// Initially the state is 'STOP_PENDING'. We need to wait until
+		// actually stopped
+		$time = time();
+		while (time() - $time < 10) {
+			$res = $this->sc('query');
+			if ($res['STATE'][1] == 'STOPPED') return;
+			sleep(1);
+		}
+		
+		user_error('Windows said it was shutting down sphinx, but after 10 seconds it\'s still running', E_USER_ERROR);
+	}
+
+	function updateIndexes($idxs, $verbose=false) {
+		// Make sure no more than one reindex running at once
+		$this->obtainLock('reindex');
+			
+		// Remove any old partially built indexes
+		foreach (glob($this->sphinx->IDXPath.'/rotate/*') as $file) unlink($file);
+			
+		// Build in the rotate directory
+		$idxlist = implode(' ', $idxs);
+		$res = `{$this->bin('indexer')} --config {$this->sphinx->VARPath}/sphinx-rotate.conf $idxlist`;
+		
+		if (!$this->sphinx->detectIndexingError($res)) {
+			// Make sure start doesn't get run
+			$this->obtainLock('start');
+			
+			// Fake rotation
+			if ($runningBeforeUpdate = ($this->status() == 'Running')) $this->stop();
+			
+			foreach (glob($this->sphinx->IDXPath.'/rotate/*') as $file) {
+				$name = basename($file);
+				rename($file, "{$this->sphinx->IDXPath}/$name");
+			}
+
+			if ($runningBeforeUpdate) $this->start();
+			else $this->releaseLock('start');
+		}
+		
+		$this->releaseLock('reindex');
+		
+		return $res;
+	}
+}
+
+/**
+ * Remote backend - use in clustered environments on every machine except one, so that there's only ever one
+ * Sphinx running
+ */
+class Sphinx_RemoteBackend extends Sphinx_Backend {
+
+	static $remote_url = null;
+
+	protected function req($method, $args = null) {
+		// Create the handle
+		$ch = curl_init(Controller::join_links(self::$remote_url, 'Sphinx', $method));
+		// Get the body back
+		curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+		// Set the post data
+		if ($args) {
+			curl_setopt($ch, CURLOPT_POST, 1);
+			curl_setopt($ch, CURLOPT_POSTFIELDS, $args);
+		}
+		// Make the request
+		$page = curl_exec($ch);
+		// Close the handle
+		curl_close($ch);
+		// Return the result
+		return $page;
+	}
+
+	function status() {
+		return $this->req('status');
+	}
+
+	function start() {
+		return $this->req('start');
+	}
+
+	function stop() {
+		return $this->req('stop');
+	}
+
+	function updateIndexes($idxs, $verbose=false) {
+		return $this->req('reindex', array('idxs' => implode(';', $idxs), 'verbose' => $verbose));
+	}
+
+	function updateDictionary($idxs) { /* NOP - relies on updateIndexes doing the right thing */ }
+}
+
+
