@@ -1,8 +1,6 @@
 {
 	"name": "silverstripe/sphinx",
-	"description": "Sphinx (sphinxsearch.com) is a powerful, high performance
-		full-text search engine. The sphinx module allows you to use sphinx within
-		a SilverStripe application/web site.",
+	"description": "Sphinx (sphinxsearch.com) is a powerful, high performance full-text search engine. The sphinx module allows you to use sphinx within a SilverStripe application/web site.",
 	"type": "silverstripe-module",
 	"keywords": ["silverstripe", "sphinx", "search"],
 	"authors": [
@@ -11,7 +9,8 @@
 		"email": "hamish@silverstripe.com"
 	},
 	{
-		"name": "Mark Stephens"
+		"name": "Mark Stephens",
+		"email": "mark@silverstripe.com"
 	}
 	],
 	"require":
